@@ -1,0 +1,48 @@
+# Core
+crewai
+crewai-tools
+openai
+fastapi
+uvicorn
+pydantic
+pydantic-settings
+
+# Data APIs
+alpha-vantage
+finnhub-python
+yfinance
+pandas-datareader
+
+# Technical Analysis
+# Note: pandas-ta needs to be installed separately: pip install git+https://github.com/twopirllc/pandas-ta.git
+numpy
+pandas
+
+# Sentiment Analysis
+transformers
+torch
+sentencepiece
+
+# Caching & Utils
+redis
+python-dotenv
+requests
+python-dateutil
+pytz
+
+# Database
+sqlalchemy
+alembic
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+
+# WebSocket
+python-socketio
+
+# Testing
+pytest
+pytest-asyncio
+httpx
