@@ -18,19 +18,19 @@ const AGENT_META: Record<
     Icon: BarChart2,
     iconColor: "text-alchmai-blue bg-alchmai-blue/10",
     description: "P/E ratio, earnings, revenue growth, debt & margins",
-    weight: "20%",
+    weight: "10%",
   },
   economic: {
     Icon: Globe,
     iconColor: "text-alchmai-purple bg-alchmai-purple/10",
     description: "GDP, inflation, Fed rate, unemployment & economic calendar",
-    weight: "15%",
+    weight: "10%",
   },
   technical: {
     Icon: TrendingUp,
     iconColor: "text-alchmai-success bg-alchmai-success/10",
     description: "RSI, MACD, SMA-20, Bollinger Bands on 15-min chart",
-    weight: "40%",
+    weight: "55%",
   },
   sentiment: {
     Icon: MessageSquare,

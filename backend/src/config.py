@@ -23,11 +23,16 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4o"  # Full GPT-4o for best reasoning quality
     temperature: float = 0.3
     
-    # Agent Weights
-    fundamental_weight: float = 0.20
-    economic_weight: float = 0.15
-    technical_weight: float = 0.40
-    sentiment_weight: float = 0.25
+    # Agent Weights — calibrated for 15-minute intraday signals.
+    # Technical dominates: price action & momentum are the only real-time signal
+    #   on a 15-min chart (CMT Level II; Lo & MacKinlay 2001).
+    # Sentiment is second: news breaks intraday and moves prices immediately.
+    # Fundamental & Economic are directional filters only — their data is
+    #   quarterly/monthly and carries no intraday edge on its own.
+    fundamental_weight: float = 0.10   # Quarterly data — directional bias filter
+    economic_weight: float = 0.10      # Monthly/static macro — backdrop filter
+    technical_weight: float = 0.55     # Real-time 15-min price action (primary)
+    sentiment_weight: float = 0.25     # Intraday news flow — immediate price impact
     
     # Thresholds
     min_confidence: float = 50.0

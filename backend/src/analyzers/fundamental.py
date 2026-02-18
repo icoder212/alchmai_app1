@@ -279,10 +279,6 @@ class FundamentalAnalyzer(BaseAnalyzer):
                 score -= 10  # Low margin
             factors += 1
 
-        # Normalize if we have factors
-        if factors > 0:
-            score = score / (1 + (factors - 1) * 0.1)  # Slight normalization
-
         return max(0, min(100, score))
     
     def _format_reasoning(

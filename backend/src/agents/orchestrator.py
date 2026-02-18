@@ -254,7 +254,8 @@ Write a 3-5 sentence explanation. Start directly with the insight — no preambl
                 technical=technical_result,
                 sentiment=sentiment_result,
                 current_price=current_price,
-                symbol=symbol
+                symbol=symbol,
+                asset_class=asset_class
             )
 
             # Step 4: GPT-4o plain-English explanation (runs after synthesis so it

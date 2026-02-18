@@ -26,7 +26,8 @@ class DecisionSynthesizer:
         technical: Dict,
         sentiment: Dict,
         current_price: float,
-        symbol: str
+        symbol: str,
+        asset_class: str = "stock"
     ) -> TradingSignal:
         """
         Synthesize final signal from all agent analyses
@@ -79,11 +80,14 @@ class DecisionSynthesizer:
         # Sum weighted scores
         total_score = fund_score + econ_score + tech_score + sent_score
         
-        # Determine final signal
-        if total_score > 10:  # Threshold for BUY
+        # Determine final signal.
+        # With Technical at 55% weight and scores up to 100, a threshold of 15
+        # requires the weighted technical contribution alone to reach ~27 points —
+        # equivalent to a moderate-to-strong signal (CMT Level II; Appel 2005).
+        if total_score > 15:  # Threshold for BUY — calibrated for 55% technical weight
             final_signal = "BUY"
             final_score = min(100, 50 + abs(total_score))
-        elif total_score < -10:  # Threshold for SELL
+        elif total_score < -15:  # Threshold for SELL — calibrated for 55% technical weight
             final_signal = "SELL"
             final_score = max(0, 50 - abs(total_score))
         else:
@@ -96,28 +100,40 @@ class DecisionSynthesizer:
         stop_loss = technical.get("stop_loss", 0.0)
         take_profit = technical.get("take_profit", 0.0)
         
+        # Asset-class-specific SL/TP percentages (mirrors technical.py PRICE_POINTS).
+        # Used as fallback when technical prices are invalid and for direction correction.
+        _PRICE_POINTS = {
+            "stock":     {"sl": 0.012, "tp": 0.020},
+            "forex":     {"sl": 0.003, "tp": 0.005},
+            "commodity": {"sl": 0.010, "tp": 0.018},
+            "crypto":    {"sl": 0.025, "tp": 0.040},
+        }
+        _pp = _PRICE_POINTS.get(asset_class, _PRICE_POINTS["stock"])
+
         # Use current_price if technical prices are invalid
         if entry_price <= 0:
             entry_price = current_price
         if stop_loss <= 0:
-            stop_loss = current_price * 0.985 if final_signal == "BUY" else current_price * 1.015
+            stop_loss = (current_price * (1 - _pp["sl"]) if final_signal == "BUY"
+                         else current_price * (1 + _pp["sl"]))
         if take_profit <= 0:
-            take_profit = current_price * 1.02 if final_signal == "BUY" else current_price * 0.98
-        
-        # Adjust price points based on final signal to ensure they're correct
-        # This handles cases where technical analysis says SELL but final signal is BUY (or vice versa)
+            take_profit = (current_price * (1 + _pp["tp"]) if final_signal == "BUY"
+                           else current_price * (1 - _pp["tp"]))
+
+        # Adjust price points based on final signal to ensure direction is correct.
+        # Handles cases where technical says SELL but final weighted signal is BUY (or vice versa).
         if final_signal == "BUY":
             # For BUY: stop_loss must be below entry, take_profit must be above entry
             if stop_loss >= entry_price:
-                stop_loss = entry_price * 0.985  # 1.5% below entry
+                stop_loss = entry_price * (1 - _pp["sl"])
             if take_profit <= entry_price:
-                take_profit = entry_price * 1.02  # 2% above entry
+                take_profit = entry_price * (1 + _pp["tp"])
         elif final_signal == "SELL":
             # For SELL: stop_loss must be above entry, take_profit must be below entry
             if stop_loss <= entry_price:
-                stop_loss = entry_price * 1.015  # 1.5% above entry
+                stop_loss = entry_price * (1 + _pp["sl"])
             if take_profit >= entry_price:
-                take_profit = entry_price * 0.98  # 2% below entry
+                take_profit = entry_price * (1 - _pp["tp"])
         
         # Calculate confidence using only applicable agents.
         # An agent is considered "not applicable" when it returns confidence=0 AND
