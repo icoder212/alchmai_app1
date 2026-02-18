@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./trading_signals.db"
     
     # LLM Settings
-    openai_model: str = "gpt-4o-mini"  # Cheaper for POC
+    openai_model: str = "gpt-4o"  # Full GPT-4o for best reasoning quality
     temperature: float = 0.3
     
     # Agent Weights

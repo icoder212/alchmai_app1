@@ -32,20 +32,18 @@ class BaseAnalyzer(ABC):
     
     def _calculate_confidence(self, score: float) -> float:
         """
-        Calculate confidence based on score
-        
-        Args:
-            score: Analysis score (0-100)
-            
-        Returns:
-            Confidence level (0-100)
+        Calculate confidence based on how far the score deviates from neutral (50).
+
+        Mapping (score → confidence):
+          50  → 50%   (neutral baseline — no strong conviction either way)
+          60  → 60%   (mild signal)
+          70  → 70%   (moderate signal)
+          80  → 80%   (strong signal)
+          90  → 90%   (very strong signal)
+          100 → 100%  (maximum conviction)
+          (symmetric for scores below 50)
         """
-        # Confidence is higher when score is further from neutral (50)
-        if score >= 50:
-            # Positive signal: confidence increases with score
-            confidence = 50 + ((score - 50) * 0.5)
-        else:
-            # Negative signal: confidence increases as score decreases
-            confidence = 50 + ((50 - score) * 0.5)
-        
-        return min(100, max(0, confidence))
+        deviation = abs(score - 50)  # 0 to 50
+        # 50% base + scale deviation to add up to 50% more at maximum
+        confidence = 50.0 + deviation
+        return min(100.0, max(0.0, confidence))

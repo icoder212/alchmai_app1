@@ -43,6 +43,12 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(signals.router, prefix="/api/v1", tags=["Signals"])
 
+# New routers for enterprise UI
+from src.routes import market, portfolio, performance
+app.include_router(market.router, prefix="/api/v1/market", tags=["Market"])
+app.include_router(portfolio.router, prefix="/api/v1/portfolio", tags=["Portfolio"])
+app.include_router(performance.router, prefix="/api/v1/performance", tags=["Performance"])
+
 # WebSocket endpoint
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):

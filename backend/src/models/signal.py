@@ -47,7 +47,10 @@ class TradingSignal(BaseModel):
     # Additional data
     current_price: Optional[float] = Field(None, description="Current market price")
     asset_class: Optional[str] = Field(None, description="Asset class (stock, forex, commodity, crypto)")
-    
+
+    # GPT-4o plain-English narrative explaining the full decision
+    ai_explanation: Optional[str] = Field(None, description="GPT-4o plain-English explanation of the signal")
+
     class Config:
         json_schema_extra = {
             "example": {

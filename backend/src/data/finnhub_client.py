@@ -116,7 +116,14 @@ class FinnhubClient:
             self._validate_client()
             try:
                 earnings = self.client.company_earnings(symbol, limit=limit)
-                return earnings.get("earnings", [])
+                # Handle both dict and list responses from Finnhub API
+                if isinstance(earnings, dict):
+                    return earnings.get("earnings", [])
+                elif isinstance(earnings, list):
+                    return earnings
+                else:
+                    logger.warning(f"Unexpected earnings format for {symbol}: {type(earnings)}")
+                    return []
             except Exception as e:
                 logger.error(f"Finnhub earnings error for {symbol}: {e}")
                 raise

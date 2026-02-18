@@ -24,7 +24,7 @@ class YFinanceBackup:
             ticker = yf.Ticker(symbol)
             info = ticker.info
             
-            # Extract relevant fields
+            # Extract relevant fields - include multiple price fields for compatibility
             return {
                 "symbol": symbol,
                 "name": info.get("longName", ""),
@@ -34,9 +34,14 @@ class YFinanceBackup:
                 "pe_ratio": info.get("trailingPE"),
                 "forward_pe": info.get("forwardPE"),
                 "revenue": info.get("totalRevenue"),
-                "profit_margin": info.get("profitMargins"),
+                "revenueGrowth": info.get("revenueGrowth"),        # e.g. 0.12 = 12% YoY growth
+                "profit_margin": info.get("profitMargins"),        # e.g. 0.24 = 24%
+                "earnings_growth": info.get("earningsGrowth"),     # e.g. 0.18 = 18% YoY EPS growth
                 "debt_to_equity": info.get("debtToEquity"),
-                "current_price": info.get("currentPrice"),
+                "current_price": info.get("currentPrice") or info.get("regularMarketPrice"),
+                "regularMarketPrice": info.get("regularMarketPrice"),
+                "currentPrice": info.get("currentPrice"),
+                "previousClose": info.get("previousClose"),
             }
         except Exception as e:
             logger.error(f"yfinance error for {symbol}: {e}")

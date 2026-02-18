@@ -24,28 +24,40 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
     --radius: 0.5rem;
+    
+    /* Alchmai brand colors */
+    --alchmai-purple: 271 81% 56%;
+    --alchmai-blue: 217 91% 60%;
+    --alchmai-dark: 240 100% 7%;
+    --alchmai-darker: 240 100% 2%;
+    --alchmai-glow: 271 81% 56% / 0.3;
+    --alchmai-text-primary: 0 0% 100%;
+    --alchmai-text-secondary: 240 9% 69%;
+    --alchmai-success: 142 76% 36%;
+    --alchmai-danger: 0 84% 60%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    /* Alchmai dark theme - primary theme */
+    --background: 240 100% 7%; /* #0F0F23 */
+    --foreground: 0 0% 100%; /* #FFFFFF */
+    --card: 240 100% 7%; /* #0F0F23 */
+    --card-foreground: 0 0% 100%; /* #FFFFFF */
+    --popover: 240 100% 7%; /* #0F0F23 */
+    --popover-foreground: 0 0% 100%; /* #FFFFFF */
+    --primary: 271 81% 56%; /* #9333EA - Alchmai Purple */
+    --primary-foreground: 0 0% 100%; /* #FFFFFF */
+    --secondary: 240 100% 12%; /* Slightly lighter than dark */
+    --secondary-foreground: 0 0% 100%; /* #FFFFFF */
+    --muted: 240 100% 12%;
+    --muted-foreground: 240 9% 69%; /* #A0A0B0 */
+    --accent: 240 100% 12%;
+    --accent-foreground: 0 0% 100%; /* #FFFFFF */
+    --destructive: 0 84% 60%; /* #EF4444 */
+    --destructive-foreground: 0 0% 100%; /* #FFFFFF */
+    --border: 240 100% 15%;
+    --input: 240 100% 15%;
+    --ring: 271 81% 56%; /* Alchmai Purple */
   }
 }
 
@@ -55,5 +67,109 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+  }
+  
+  /* Ensure dark theme is default */
+  html {
+    color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  /* Glowing border utilities */
+  .glow-purple {
+    box-shadow: 0 0 20px rgba(147, 51, 234, 0.3);
+  }
+  
+  .glow-blue {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+  
+  .glow-purple-lg {
+    box-shadow: 0 0 30px rgba(147, 51, 234, 0.5);
+  }
+  
+  .glow-blue-lg {
+    box-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+  }
+  
+  /* Grid background pattern */
+  .bg-grid-pattern {
+    background-image: 
+      linear-gradient(to right, rgba(147, 51, 234, 0.1) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(147, 51, 234, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  
+  /* Pulse animation for live indicators */
+  @keyframes pulse-slow {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* Glow animation */
+  @keyframes glow {
+    0%, 100% {
+      box-shadow: 0 0 20px rgba(147, 51, 234, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 30px rgba(147, 51, 234, 0.5);
+    }
+  }
+  
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite;
+  }
+
+  /* Fade-in from below — used on signal result cards */
+  @keyframes fade-slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-slide-up {
+    animation: fade-slide-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Staggered children — add delay via CSS variable */
+  .animate-fade-slide-up-1 { animation: fade-slide-up 0.45s 0.05s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-fade-slide-up-2 { animation: fade-slide-up 0.45s 0.12s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-fade-slide-up-3 { animation: fade-slide-up 0.45s 0.19s cubic-bezier(0.22, 1, 0.36, 1) both; }
+  .animate-fade-slide-up-4 { animation: fade-slide-up 0.45s 0.26s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+  /* Score bar fill animation */
+  @keyframes score-fill {
+    from { width: 0%; }
+  }
+
+  .animate-score-fill {
+    animation: score-fill 0.8s 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Number count-up shimmer on signal badge */
+  @keyframes badge-pop {
+    0%   { transform: scale(0.8); opacity: 0; }
+    60%  { transform: scale(1.06); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .animate-badge-pop {
+    animation: badge-pop 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 }

@@ -63,17 +63,19 @@ class SentimentAnalyzer(BaseAnalyzer):
             avg_sentiment = sum(s['score'] for s in sentiments) / len(sentiments)
             
             # Determine recommendation
-            if avg_sentiment > 0.2:
+            if avg_sentiment > 0.1:
                 recommendation = "BUY"
                 score = min(100, 50 + (avg_sentiment * 100))
-            elif avg_sentiment < -0.2:
+            elif avg_sentiment < -0.1:
                 recommendation = "SELL"
                 score = max(0, 50 + (avg_sentiment * 100))
             else:
                 recommendation = "NEUTRAL"
                 score = 50.0
-            
-            confidence = min(100, abs(avg_sentiment) * 100)
+
+            # Use the same score-based confidence formula as all other analyzers
+            # (avoids the raw avg_sentiment * 100 which collapses to ~12% on mixed news)
+            confidence = self._calculate_confidence(score)
             
             # Count positive vs negative news
             positive_count = len([s for s in sentiments if s['score'] > 0])
@@ -137,32 +139,48 @@ class SentimentAnalyzer(BaseAnalyzer):
         
         return news[:50]  # Limit to 50 articles
     
+    def _build_text_for_analysis(self, article: Dict) -> str:
+        """
+        Build the text to feed to FinBERT.
+        Combine title + summary for richer signal, truncated to 512 chars
+        (FinBERT's token limit maps roughly to 512 characters).
+        """
+        title = (article.get("title") or "").strip()
+        summary = (article.get("summary") or "").strip()
+
+        if title and summary:
+            combined = f"{title}. {summary}"
+        else:
+            combined = title or summary
+
+        # FinBERT max input is 512 tokens; 512 chars is a safe character limit
+        return combined[:512]
+
     def _analyze_sentiments(self, news: List[Dict]) -> List[Dict]:
         """Analyze sentiment of news articles"""
         sentiments = []
-        
+
         for article in news:
-            headline = article.get("title", "") or article.get("summary", "")
-            if not headline:
+            text = self._build_text_for_analysis(article)
+            if not text:
                 continue
-            
-            # If Alpha Vantage already provided sentiment, use it
+
+            # If Alpha Vantage already provided a sentiment score, use it
             if article.get("sentiment_score") is not None:
                 score = float(article.get("sentiment_score", 0))
-                # Convert from -1 to +1 scale
                 sentiments.append({
-                    "headline": headline,
+                    "headline": text,
                     "sentiment": "positive" if score > 0 else "negative" if score < 0 else "neutral",
                     "score": score,
                     "published": article.get("published", "")
                 })
                 continue
-            
-            # Otherwise, use FinBERT
+
+            # Use FinBERT on combined title + summary
             if self.finbert:
                 try:
-                    result = self.finbert(headline)[0]
-                    
+                    result = self.finbert(text)[0]
+
                     # Convert to score (-1 to +1)
                     if result['label'] == 'positive':
                         score = result['score']
@@ -170,9 +188,9 @@ class SentimentAnalyzer(BaseAnalyzer):
                         score = -result['score']
                     else:  # neutral
                         score = 0
-                    
+
                     sentiments.append({
-                        "headline": headline,
+                        "headline": text,
                         "sentiment": result['label'],
                         "score": score,
                         "published": article.get("published", "")
@@ -181,14 +199,14 @@ class SentimentAnalyzer(BaseAnalyzer):
                     self.logger.warning(f"FinBERT analysis error: {e}")
             else:
                 # Fallback: simple keyword-based sentiment
-                score = self._simple_sentiment(headline)
+                score = self._simple_sentiment(text)
                 sentiments.append({
-                    "headline": headline,
+                    "headline": text,
                     "sentiment": "positive" if score > 0 else "negative" if score < 0 else "neutral",
                     "score": score,
                     "published": article.get("published", "")
                 })
-        
+
         return sentiments
     
     def _simple_sentiment(self, text: str) -> float:

@@ -1,6 +1,7 @@
 """CrewAI orchestrator for multi-agent trading signal generation"""
 import time
 import asyncio
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict
 from datetime import datetime
 
@@ -106,6 +107,74 @@ class TradingSignalOrchestrator:
             'sentiment': sentiment_agent
         }
     
+    def _generate_ai_explanation(
+        self,
+        symbol: str,
+        asset_class: str,
+        current_price: float,
+        signal: TradingSignal,
+        fundamental: Dict,
+        economic: Dict,
+        technical: Dict,
+        sentiment: Dict,
+    ) -> str:
+        """
+        Call GPT-4o to produce a single, rich plain-English paragraph that
+        explains the full signal decision — what each agent found, why they
+        agree or disagree, and a clear risk/reward narrative.
+        """
+        try:
+            # Determine how many agents agree with the final signal
+            analyses = [fundamental, economic, technical, sentiment]
+            names = ["Fundamental", "Economic", "Technical", "Sentiment"]
+            agree = [n for n, a in zip(names, analyses) if a["recommendation"] == signal.signal]
+            disagree = [n for n, a in zip(names, analyses) if a["recommendation"] != signal.signal and a["recommendation"] != "NEUTRAL"]
+            neutral = [n for n, a in zip(names, analyses) if a["recommendation"] == "NEUTRAL"]
+
+            risk = abs(signal.entry_price - signal.stop_loss)
+            reward = abs(signal.take_profit - signal.entry_price)
+            rr = f"1:{reward / risk:.1f}" if risk > 0 else "N/A"
+
+            prompt = f"""You are an expert trading analyst. Provide a single, confident, 3-5 sentence plain-English explanation of the following AI-generated trading signal. Write for a sophisticated trader who wants insight, not just a data dump. Be specific, use the actual numbers, and explain WHY — not just WHAT.
+
+SIGNAL SUMMARY:
+- Instrument: {symbol} ({asset_class})
+- Current Price: ${current_price:.2f}
+- Signal: {signal.signal}
+- Entry: ${signal.entry_price:.2f} | Stop Loss: ${signal.stop_loss:.2f} | Take Profit: ${signal.take_profit:.2f}
+- Risk/Reward: {rr}
+- Overall Confidence: {signal.confidence:.1f}%
+
+AGENT FINDINGS:
+- Fundamental ({fundamental['recommendation']}, score {fundamental['score']:.0f}/100): {fundamental['reasoning']}
+- Economic ({economic['recommendation']}, score {economic['score']:.0f}/100): {economic['reasoning']}
+- Technical ({technical['recommendation']}, score {technical['score']:.0f}/100): {technical['reasoning']}
+- Sentiment ({sentiment['recommendation']}, score {sentiment['score']:.0f}/100): {sentiment['reasoning']}
+
+CONSENSUS: {', '.join(agree) if agree else 'None'} agree on {signal.signal}. {', '.join(disagree) + ' disagree.' if disagree else ''}{' ' + ', '.join(neutral) + ' are neutral.' if neutral else ''}
+
+Write a 3-5 sentence explanation. Start directly with the insight — no preamble like "The AI system..." or "Based on the analysis...". Be direct, confident, and specific."""
+
+            response = self.llm.invoke(prompt)
+            explanation = response.content.strip()
+            logger.info(f"GPT-4o explanation generated for {symbol} ({len(explanation)} chars)")
+            return explanation
+
+        except Exception as e:
+            logger.warning(f"GPT-4o explanation failed for {symbol}: {e}")
+            # Graceful fallback — never block signal delivery
+            agents_text = ", ".join(
+                f"{n}: {a['recommendation']}"
+                for n, a in zip(["Fundamental", "Economic", "Technical", "Sentiment"],
+                                [fundamental, economic, technical, sentiment])
+            )
+            return (
+                f"{signal.signal} signal for {symbol} at ${signal.entry_price:.2f} "
+                f"with {signal.confidence:.1f}% confidence. "
+                f"Agent breakdown — {agents_text}. "
+                f"Stop loss: ${signal.stop_loss:.2f} | Take profit: ${signal.take_profit:.2f}."
+            )
+
     def generate_signal(self, instrument: str) -> TradingSignal:
         """
         Generate trading signal for given instrument
@@ -130,33 +199,54 @@ class TradingSignalOrchestrator:
             
             logger.info(f"Processed input: {symbol} ({asset_class}) @ ${current_price:.2f}")
             
-            # Step 2: Run analyzers in parallel (simulated with sequential for now)
-            logger.info("Running analysis agents...")
-            
-            # Run all analyzers
-            fundamental_result = self.fundamental_analyzer.analyze(
-                symbol, asset_class=asset_class
-            )
-            api_calls += 2  # Approximate
-            
-            economic_result = self.economic_analyzer.analyze(
-                symbol, asset_class=asset_class
-            )
-            api_calls += 1  # FRED calls
-            
-            technical_result = self.technical_analyzer.analyze(symbol, asset_class=asset_class)
-            api_calls += 2  # Price data calls
-            
-            sentiment_result = self.sentiment_analyzer.analyze(symbol)
-            api_calls += 2  # News calls
-            
-            logger.info("All analyzers completed")
-            
-            # Step 3: Enhance with CrewAI agents (optional, for LLM reasoning)
-            # For now, we'll use the analyzer results directly
-            # In future, can add CrewAI tasks to enhance reasoning
-            
-            # Step 4: Synthesize final signal
+            # Step 2: Run all 4 analyzers in parallel using ThreadPoolExecutor
+            logger.info("Running analysis agents in parallel...")
+
+            def run_fundamental():
+                return self.fundamental_analyzer.analyze(symbol, asset_class=asset_class)
+
+            def run_economic():
+                return self.economic_analyzer.analyze(symbol, asset_class=asset_class)
+
+            def run_technical():
+                return self.technical_analyzer.analyze(symbol, asset_class=asset_class)
+
+            def run_sentiment():
+                return self.sentiment_analyzer.analyze(symbol)
+
+            tasks = {
+                "fundamental": run_fundamental,
+                "economic": run_economic,
+                "technical": run_technical,
+                "sentiment": run_sentiment,
+            }
+
+            results = {}
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                future_to_key = {executor.submit(fn): key for key, fn in tasks.items()}
+                for future in as_completed(future_to_key):
+                    key = future_to_key[future]
+                    try:
+                        results[key] = future.result()
+                    except Exception as exc:
+                        logger.error(f"{key} analyzer raised an exception: {exc}", exc_info=True)
+                        # Return neutral result on failure so synthesis can continue
+                        results[key] = {
+                            "recommendation": "NEUTRAL",
+                            "score": 50.0,
+                            "reasoning": f"Analyzer error: {exc}",
+                            "confidence": 0.0,
+                        }
+
+            fundamental_result = results["fundamental"]
+            economic_result = results["economic"]
+            technical_result = results["technical"]
+            sentiment_result = results["sentiment"]
+            api_calls += 7  # Approximate total across all analyzers
+
+            logger.info("All analyzers completed (parallel)")
+
+            # Step 3: Synthesize final signal
             logger.info("Synthesizing final signal...")
             signal = self.decision_synthesizer.synthesize(
                 fundamental=fundamental_result,
@@ -166,27 +256,40 @@ class TradingSignalOrchestrator:
                 current_price=current_price,
                 symbol=symbol
             )
-            
+
+            # Step 4: GPT-4o plain-English explanation (runs after synthesis so it
+            # can reference the final signal direction and all 4 agent outputs)
+            logger.info("Generating GPT-4o narrative explanation...")
+            signal.ai_explanation = self._generate_ai_explanation(
+                symbol=symbol,
+                asset_class=asset_class,
+                current_price=current_price,
+                signal=signal,
+                fundamental=fundamental_result,
+                economic=economic_result,
+                technical=technical_result,
+                sentiment=sentiment_result,
+            )
+            api_calls += 1  # one GPT-4o call
+
             # Step 5: Validate signal
             logger.info("Validating signal...")
             is_valid, error_message = self.safety_validator.validate(signal)
-            
+
             if not is_valid:
                 logger.warning(f"Signal validation failed: {error_message}")
-                # Still return signal but log the issue
-                # In production, might want to reject or flag
-            
+
             # Step 6: Add metadata
             execution_time = time.time() - start_time
             signal.execution_time = round(execution_time, 2)
             signal.api_calls_made = api_calls
             signal.asset_class = asset_class
-            
+
             logger.info(
                 f"Signal generation complete: {signal.signal} for {symbol} "
                 f"(confidence: {signal.confidence}%, time: {execution_time:.2f}s)"
             )
-            
+
             return signal
             
         except Exception as e:

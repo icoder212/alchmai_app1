@@ -1,6 +1,8 @@
 """Signal generation routes"""
 from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
+from datetime import datetime
+from pydantic import BaseModel
 
 from src.models.signal import SignalRequest, SignalResponse, TradingSignal
 from src.utils.logger import get_logger
@@ -8,6 +10,28 @@ from src.routes.websocket import manager
 
 router = APIRouter()
 logger = get_logger(__name__)
+
+# Singleton orchestrator — instantiated once so FinBERT loads only on first request
+_orchestrator = None
+
+def _get_orchestrator():
+    """Return the singleton TradingSignalOrchestrator, creating it on first call."""
+    global _orchestrator
+    if _orchestrator is None:
+        from src.agents.orchestrator import TradingSignalOrchestrator
+        logger.info("Initializing TradingSignalOrchestrator singleton...")
+        _orchestrator = TradingSignalOrchestrator()
+        logger.info("TradingSignalOrchestrator singleton ready")
+    return _orchestrator
+
+
+class ActiveSignalsResponse(BaseModel):
+    """Response model for active signals endpoint"""
+    total: int
+    buy: int
+    hold: int
+    sell: int
+    timestamp: datetime
 
 
 @router.post("/signal", response_model=SignalResponse)
@@ -26,10 +50,9 @@ async def generate_signal(
     """
     try:
         logger.info(f"Generating signal for {request.instrument}")
-        
-        # Import and use orchestrator
-        from src.agents.orchestrator import TradingSignalOrchestrator
-        orchestrator = TradingSignalOrchestrator()
+
+        # Use singleton orchestrator (FinBERT loads only once)
+        orchestrator = _get_orchestrator()
         signal = orchestrator.generate_signal(request.instrument)
         
         # Store signal in history
@@ -125,3 +148,45 @@ async def get_signal(signal_id: int):
     """
     # TODO: Implement database query
     raise HTTPException(status_code=404, detail="Signal not found")
+
+
+@router.get("/active", response_model=ActiveSignalsResponse)
+async def get_active_signals():
+    """
+    Get count of active signals from last 24 hours
+    
+    Returns:
+        ActiveSignalsResponse with total, buy, hold, sell counts
+    """
+    from datetime import timedelta
+    from src.utils.signal_store import signal_store
+    
+    try:
+        # Get signals from last 24 hours
+        cutoff_time = datetime.utcnow() - timedelta(hours=24)
+        all_signals = signal_store.get_recent(1000)  # Get more to filter by time
+        
+        # Filter by time
+        recent_signals = [
+            s for s in all_signals 
+            if s.timestamp >= cutoff_time
+        ]
+        
+        # Count by type
+        buy_count = sum(1 for s in recent_signals if s.signal == "BUY")
+        sell_count = sum(1 for s in recent_signals if s.signal == "SELL")
+        hold_count = sum(1 for s in recent_signals if s.signal == "NEUTRAL" or s.signal == "HOLD")
+        total = len(recent_signals)
+        
+        logger.info(f"Active signals: total={total}, buy={buy_count}, hold={hold_count}, sell={sell_count}")
+        
+        return ActiveSignalsResponse(
+            total=total,
+            buy=buy_count,
+            hold=hold_count,
+            sell=sell_count,
+            timestamp=datetime.utcnow()
+        )
+    except Exception as e:
+        logger.error(f"Error counting active signals: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to count active signals")

@@ -46,6 +46,7 @@ export interface TradingSignal {
   api_calls_made: number;
   current_price?: number;
   asset_class?: string;
+  ai_explanation?: string;
 }
 
 export interface SignalResponse {
@@ -53,6 +54,41 @@ export interface SignalResponse {
   signal?: TradingSignal;
   error?: string;
   message?: string;
+}
+
+export interface AssetTicker {
+  symbol: string;
+  price: number;
+  change: number;
+  change_type: 'positive' | 'negative';
+  timestamp: string;
+}
+
+export interface PortfolioSummary {
+  total_value: number;
+  change_percent: number;
+  change_type: 'positive' | 'negative';
+  has_portfolio: boolean;
+  timestamp: string;
+}
+
+export interface ActiveSignalsResponse {
+  total: number;
+  buy: number;
+  hold: number;
+  sell: number;
+  timestamp: string;
+}
+
+export interface PerformanceMetrics {
+  win_rate: number;
+  win_rate_change: number;
+  avg_return: number;
+  avg_return_change: number;
+  trades_per_month: number;
+  trades_per_month_change: number;
+  period: string;
+  timestamp: string;
 }
 
 export const api = {
@@ -111,6 +147,71 @@ export const api = {
         success: false,
         error: error.response?.data?.detail || error.message || 'Failed to fetch signal history',
         signals: []
+      };
+    }
+  },
+
+  // Market tickers
+  getMarketTickers: async (): Promise<AssetTicker[]> => {
+    try {
+      const response = await apiClient.get<AssetTicker[]>("/market/tickers");
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to fetch market tickers:', error);
+      return [];
+    }
+  },
+
+  // Portfolio summary
+  getPortfolioSummary: async (): Promise<PortfolioSummary> => {
+    try {
+      const response = await apiClient.get<PortfolioSummary>("/portfolio/summary");
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to fetch portfolio summary:', error);
+      return {
+        total_value: 0,
+        change_percent: 0,
+        change_type: 'positive',
+        has_portfolio: false,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  },
+
+  // Active signals
+  getActiveSignals: async (): Promise<ActiveSignalsResponse> => {
+    try {
+      const response = await apiClient.get<ActiveSignalsResponse>("/active");
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to fetch active signals:', error);
+      return {
+        total: 0,
+        buy: 0,
+        hold: 0,
+        sell: 0,
+        timestamp: new Date().toISOString(),
+      };
+    }
+  },
+
+  // Performance metrics
+  getPerformanceMetrics: async (): Promise<PerformanceMetrics> => {
+    try {
+      const response = await apiClient.get<PerformanceMetrics>("/performance/metrics");
+      return response.data;
+    } catch (error: any) {
+      console.error('Failed to fetch performance metrics:', error);
+      return {
+        win_rate: 0,
+        win_rate_change: 0,
+        avg_return: 0,
+        avg_return_change: 0,
+        trades_per_month: 0,
+        trades_per_month_change: 0,
+        period: 'last_30_days',
+        timestamp: new Date().toISOString(),
       };
     }
   },

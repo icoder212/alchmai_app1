@@ -104,18 +104,54 @@ class DecisionSynthesizer:
         if take_profit <= 0:
             take_profit = current_price * 1.02 if final_signal == "BUY" else current_price * 0.98
         
-        # Adjust if signal is SELL (override technical values)
-        if final_signal == "SELL":
-            stop_loss = current_price * 1.015
-            take_profit = current_price * 0.98
+        # Adjust price points based on final signal to ensure they're correct
+        # This handles cases where technical analysis says SELL but final signal is BUY (or vice versa)
+        if final_signal == "BUY":
+            # For BUY: stop_loss must be below entry, take_profit must be above entry
+            if stop_loss >= entry_price:
+                stop_loss = entry_price * 0.985  # 1.5% below entry
+            if take_profit <= entry_price:
+                take_profit = entry_price * 1.02  # 2% above entry
+        elif final_signal == "SELL":
+            # For SELL: stop_loss must be above entry, take_profit must be below entry
+            if stop_loss <= entry_price:
+                stop_loss = entry_price * 1.015  # 1.5% above entry
+            if take_profit >= entry_price:
+                take_profit = entry_price * 0.98  # 2% below entry
         
-        # Calculate confidence (weighted average of agent confidences)
-        confidence = (
-            fundamental["confidence"] * self.weights["fundamental"] +
-            economic["confidence"] * self.weights["economic"] +
-            technical["confidence"] * self.weights["technical"] +
-            sentiment["confidence"] * self.weights["sentiment"]
-        )
+        # Calculate confidence using only applicable agents.
+        # An agent is considered "not applicable" when it returns confidence=0 AND
+        # recommendation=NEUTRAL (e.g. Fundamental for commodities/forex/crypto).
+        # We re-normalize the weights across applicable agents so that N/A pillars
+        # do not unfairly drag the overall confidence down below the minimum threshold.
+        agent_results = {
+            "fundamental": fundamental,
+            "economic": economic,
+            "technical": technical,
+            "sentiment": sentiment,
+        }
+        applicable_weight_sum = 0.0
+        weighted_confidence_sum = 0.0
+        for agent_name, result in agent_results.items():
+            w = self.weights[agent_name]
+            conf = result["confidence"]
+            rec = result["recommendation"]
+            # Skip agents that are explicitly N/A (0 confidence + NEUTRAL)
+            if conf == 0.0 and rec == "NEUTRAL":
+                continue
+            applicable_weight_sum += w
+            weighted_confidence_sum += conf * w
+
+        if applicable_weight_sum > 0:
+            confidence = weighted_confidence_sum / applicable_weight_sum
+        else:
+            # All agents are N/A — fall back to simple average
+            confidence = (
+                fundamental["confidence"] * self.weights["fundamental"] +
+                economic["confidence"] * self.weights["economic"] +
+                technical["confidence"] * self.weights["technical"] +
+                sentiment["confidence"] * self.weights["sentiment"]
+            )
         
         # Create agent analysis objects
         fundamental_analysis = AgentAnalysis(
