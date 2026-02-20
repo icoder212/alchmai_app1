@@ -45,16 +45,33 @@ class DecisionSynthesizer:
         """
         logger.info(f"Synthesizing signal for {symbol}")
         
-        # Convert agent recommendations to scores
-        # BUY = positive, SELL = negative, NEUTRAL = 0
+        # Convert agent recommendations to a symmetric signed score.
+        #
+        # All agents (Fundamental, Economic, Technical, Sentiment) produce scores
+        # on a 0–100 scale where 50 = neutral, >50 = bullish, <50 = bearish.
+        # The DIRECTION of the score (above/below 50) already encodes BUY/SELL,
+        # so we normalise to a −100…+100 scale using:
+        #
+        #   normalised = (raw_score − 50) × 2
+        #
+        # Examples:
+        #   BUY  score 100 → +100  (maximum bullish conviction)
+        #   BUY  score  75 →  +50  (moderate bullish)
+        #   NEUTRAL       50 →    0  (flat)
+        #   SELL score  25 →  −50  (moderate bearish)
+        #   SELL score   0 → −100  (maximum bearish conviction)
+        #   SELL score 13.5 → −73  (strong bearish — 4 concurrent bearish signals)
+        #
+        # This fixes the previous asymmetry where a SELL score of 13.5 contributed
+        # only −13.5 × weight, making it numerically negligible versus a BUY score
+        # of 65 contributing +65 × weight — even when the SELL had higher weight.
+        # The rec argument is kept for N/A guard (confidence=0, rec=NEUTRAL agents).
         def recommendation_to_score(rec: str, score: float) -> float:
-            """Convert recommendation to signed score"""
-            if rec == "BUY":
-                return score  # 0-100, positive
-            elif rec == "SELL":
-                return -score  # -100 to 0, negative
-            else:  # NEUTRAL
-                return 0
+            """Convert 0-100 agent score to symmetric −100…+100 signed score."""
+            if rec == "NEUTRAL" and score == 50.0:
+                # Explicit neutral (e.g. Fundamental N/A for forex/crypto) — no contribution
+                return 0.0
+            return (score - 50.0) * 2.0
         
         # Calculate weighted scores
         fund_score = recommendation_to_score(
@@ -81,13 +98,16 @@ class DecisionSynthesizer:
         total_score = fund_score + econ_score + tech_score + sent_score
         
         # Determine final signal.
-        # With Technical at 55% weight and scores up to 100, a threshold of 15
-        # requires the weighted technical contribution alone to reach ~27 points —
-        # equivalent to a moderate-to-strong signal (CMT Level II; Appel 2005).
-        if total_score > 15:  # Threshold for BUY — calibrated for 55% technical weight
+        # total_score is now on a symmetric −100…+100 scale (sum of weighted
+        # normalised scores). A threshold of ±15 means roughly 15% of maximum
+        # conviction across all agents — requiring a clear directional lean before
+        # committing to BUY or SELL (CMT Level II; Appel 2005).
+        # With Technical at 55% weight a pure technical SELL score of 0 (maximum
+        # bearish) alone contributes −55, which easily clears the −15 threshold.
+        if total_score > 15:  # Threshold for BUY
             final_signal = "BUY"
             final_score = min(100, 50 + abs(total_score))
-        elif total_score < -15:  # Threshold for SELL — calibrated for 55% technical weight
+        elif total_score < -15:  # Threshold for SELL
             final_signal = "SELL"
             final_score = max(0, 50 - abs(total_score))
         else:

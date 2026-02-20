@@ -838,11 +838,11 @@ video {
 .w-8 {
   width: 2rem;
 }
-.w-full {
-  width: 100%;
-}
 .w-auto {
   width: auto;
+}
+.w-full {
+  width: 100%;
 }
 .min-w-\[140px\] {
   min-width: 140px;
@@ -1919,11 +1919,6 @@ video {
 
 .hover\:text-accent-foreground:hover {
   color: hsl(var(--accent-foreground));
-}
-
-.hover\:text-alchmai-blue:hover {
-  --tw-text-opacity: 1;
-  color: rgb(59 130 246 / var(--tw-text-opacity, 1));
 }
 
 .hover\:text-alchmai-purple:hover {
