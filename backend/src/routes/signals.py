@@ -49,11 +49,12 @@ async def generate_signal(
         SignalResponse with generated signal or error
     """
     try:
-        logger.info(f"Generating signal for {request.instrument}")
+        timeframe = request.timeframe or "15m"
+        logger.info(f"Generating signal for {request.instrument} on {timeframe} timeframe")
 
         # Use singleton orchestrator (FinBERT loads only once)
         orchestrator = _get_orchestrator()
-        signal = orchestrator.generate_signal(request.instrument)
+        signal = orchestrator.generate_signal(request.instrument, timeframe=timeframe)
         
         # Store signal in history
         from src.utils.signal_store import signal_store

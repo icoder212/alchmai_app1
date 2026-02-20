@@ -20,6 +20,7 @@ apiClient.interceptors.request.use((config) => {
 
 export interface SignalRequest {
   instrument: string;
+  timeframe?: string;
 }
 
 export interface AgentAnalysis {
@@ -46,7 +47,17 @@ export interface TradingSignal {
   api_calls_made: number;
   current_price?: number;
   asset_class?: string;
+  timeframe?: string;
   ai_explanation?: string;
+}
+
+export interface ChartCandle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
 }
 
 export interface SignalResponse {
@@ -112,11 +123,30 @@ export const api = {
   },
 
   // Signals
-  generateSignal: async (instrument: string): Promise<SignalResponse> => {
+  generateSignal: async (instrument: string, timeframe: string = "15m"): Promise<SignalResponse> => {
     const response = await apiClient.post<SignalResponse>("/signal", {
       instrument,
+      timeframe,
     });
     return response.data;
+  },
+
+  getChartData: async (
+    symbol: string,
+    timeframe: string = "15m",
+    window: string = "1D",
+    assetClass: string = "stock"
+  ): Promise<ChartCandle[]> => {
+    try {
+      const response = await apiClient.get<ChartCandle[]>(
+        `/market/chart/${symbol}`,
+        { params: { timeframe, window, asset_class: assetClass } }
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error("Failed to fetch chart data:", error);
+      return [];
+    }
   },
 
   getSignals: async (skip: number = 0, limit: number = 20): Promise<TradingSignal[]> => {

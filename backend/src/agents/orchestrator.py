@@ -175,13 +175,14 @@ Write a 3-5 sentence explanation. Start directly with the insight — no preambl
                 f"Stop loss: ${signal.stop_loss:.2f} | Take profit: ${signal.take_profit:.2f}."
             )
 
-    def generate_signal(self, instrument: str) -> TradingSignal:
+    def generate_signal(self, instrument: str, timeframe: str = "15m") -> TradingSignal:
         """
         Generate trading signal for given instrument
-        
+
         Args:
             instrument: Instrument name or symbol (e.g., "AAPL", "Apple")
-            
+            timeframe: Candle timeframe for technical analysis (1m, 5m, 15m, 30m, 1h, 1D)
+
         Returns:
             TradingSignal with complete analysis
         """
@@ -209,7 +210,7 @@ Write a 3-5 sentence explanation. Start directly with the insight — no preambl
                 return self.economic_analyzer.analyze(symbol, asset_class=asset_class)
 
             def run_technical():
-                return self.technical_analyzer.analyze(symbol, asset_class=asset_class)
+                return self.technical_analyzer.analyze(symbol, asset_class=asset_class, timeframe=timeframe)
 
             def run_sentiment():
                 return self.sentiment_analyzer.analyze(symbol)
@@ -285,6 +286,7 @@ Write a 3-5 sentence explanation. Start directly with the insight — no preambl
             signal.execution_time = round(execution_time, 2)
             signal.api_calls_made = api_calls
             signal.asset_class = asset_class
+            signal.timeframe = timeframe
 
             logger.info(
                 f"Signal generation complete: {signal.signal} for {symbol} "

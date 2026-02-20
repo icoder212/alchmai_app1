@@ -24,8 +24,19 @@ import { Sparkles } from "lucide-react";
 // Quick-access demo instruments shown as chips
 const DEMO_INSTRUMENTS = ["AAPL", "EURUSD", "Gold", "BTC", "MSFT", "GOOGL"];
 
+// Selectable signal timeframes
+const TIMEFRAMES = [
+  { value: "1m",  label: "1m"  },
+  { value: "5m",  label: "5m"  },
+  { value: "15m", label: "15m" },
+  { value: "30m", label: "30m" },
+  { value: "1h",  label: "1h"  },
+  { value: "1D",  label: "1D"  },
+];
+
 export default function DashboardPage() {
   const [instrument, setInstrument] = useState("");
+  const [timeframe, setTimeframe] = useState("15m");
   const [loading, setLoading] = useState(false);
   const [signal, setSignal] = useState<TradingSignal | null>(null);
   const [error, setError] = useState("");
@@ -120,7 +131,7 @@ export default function DashboardPage() {
     });
 
     try {
-      const response = await api.generateSignal(sym.trim());
+      const response = await api.generateSignal(sym.trim(), timeframe);
       timers.forEach(clearInterval);
 
       if (response.success && response.signal) {
@@ -285,6 +296,26 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
+                  {/* Timeframe selector */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-alchmai-text-secondary font-medium">Timeframe:</span>
+                    {TIMEFRAMES.map((tf) => (
+                      <button
+                        key={tf.value}
+                        type="button"
+                        onClick={() => setTimeframe(tf.value)}
+                        disabled={loading}
+                        className={`px-3 py-1 text-xs rounded-full border transition-all disabled:opacity-40 ${
+                          timeframe === tf.value
+                            ? "bg-alchmai-purple/20 border-alchmai-purple text-alchmai-purple font-semibold"
+                            : "border-alchmai-purple/30 text-alchmai-text-secondary hover:text-alchmai-text-primary hover:border-alchmai-purple/60"
+                        }`}
+                      >
+                        {tf.label}
+                      </button>
+                    ))}
+                  </div>
+
                   {/* Quick demo chips */}
                   <div className="flex flex-wrap gap-2">
                     {DEMO_INSTRUMENTS.map((sym) => (
@@ -333,6 +364,8 @@ export default function DashboardPage() {
                     stopLoss={signal.stop_loss}
                     takeProfit={signal.take_profit}
                     signal={signal.signal as "BUY" | "SELL"}
+                    timeframe={signal.timeframe || timeframe}
+                    assetClass={signal.asset_class || "stock"}
                   />
                 </div>
 

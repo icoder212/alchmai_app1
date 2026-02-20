@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from src.utils.logger import get_logger
 from src.data.yfinance_backup import yfinance_backup
+from src.analyzers.technical import TIMEFRAME_CONFIG
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -127,3 +128,85 @@ async def get_market_tickers():
     except Exception as e:
         logger.error(f"Error fetching market tickers: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to fetch market tickers")
+
+
+def _to_yfinance_symbol(symbol: str, asset_class: str) -> str:
+    """Convert a normalised signal symbol to a yfinance-compatible symbol."""
+    if asset_class == "forex":
+        return f"{symbol}=X"
+    commodity_map = {
+        "XAUUSD": "GC=F", "XAGUSD": "SI=F",
+        "Gold": "GC=F", "Silver": "SI=F",
+        "CL": "CL=F", "NG": "NG=F",
+    }
+    if symbol in commodity_map:
+        return commodity_map[symbol]
+    if asset_class == "crypto" and "USD" not in symbol:
+        return f"{symbol}-USD"
+    return symbol
+
+
+@router.get("/chart/{symbol}")
+async def get_chart_data(
+    symbol: str,
+    timeframe: str = "15m",
+    window: str = "1D",
+    asset_class: str = "stock",
+):
+    """
+    Return OHLCV candle data for the chart.
+
+    The timeframe (1m/5m/15m/30m/1h/1D) controls the candle interval.
+    The window (1D/1W/1M/3M) controls how much history is returned.
+
+    yfinance limits: 1m → max 7 days, 5m/15m/30m/60m → max 60 days, 1d → unlimited.
+    """
+    try:
+        cfg = TIMEFRAME_CONFIG.get(timeframe, TIMEFRAME_CONFIG["15m"])
+        interval = cfg["interval"]
+
+        # Map (timeframe, window) → yfinance period, respecting data availability limits
+        period_map = {
+            "1m":  {"1D": "1d",   "1W": "5d",   "1M": "7d",   "3M": "7d"},
+            "5m":  {"1D": "1d",   "1W": "5d",   "1M": "30d",  "3M": "60d"},
+            "15m": {"1D": "1d",   "1W": "5d",   "1M": "30d",  "3M": "60d"},
+            "30m": {"1D": "1d",   "1W": "5d",   "1M": "30d",  "3M": "60d"},
+            "1h":  {"1D": "1d",   "1W": "5d",   "1M": "30d",  "3M": "60d"},
+            "1D":  {"1D": "30d",  "1W": "90d",  "1M": "180d", "3M": "1y"},
+        }
+        period = period_map.get(timeframe, period_map["15m"]).get(window, "5d")
+
+        yf_symbol = _to_yfinance_symbol(symbol, asset_class)
+        df = yfinance_backup.get_historical_data(yf_symbol, period=period, interval=interval)
+
+        if df is None or df.empty:
+            raise HTTPException(status_code=404, detail=f"No chart data available for {symbol}")
+
+        # Normalise column names
+        df.columns = [col.lower() for col in df.columns]
+
+        # Build lightweight-charts compatible OHLCV list
+        candles = []
+        for ts, row in df.iterrows():
+            try:
+                # Convert pandas Timestamp to Unix seconds
+                unix_ts = int(ts.timestamp())
+                candles.append({
+                    "time":   unix_ts,
+                    "open":   round(float(row["open"]),  4),
+                    "high":   round(float(row["high"]),  4),
+                    "low":    round(float(row["low"]),   4),
+                    "close":  round(float(row["close"]), 4),
+                    "volume": round(float(row.get("volume", 0)), 0),
+                })
+            except Exception:
+                continue
+
+        logger.info(f"Chart data: {len(candles)} candles for {symbol} [{timeframe}, {window}]")
+        return candles
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching chart data for {symbol}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch chart data")

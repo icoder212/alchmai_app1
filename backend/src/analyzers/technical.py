@@ -1,4 +1,4 @@
-"""Technical analysis analyzer for 15-minute charts"""
+"""Technical analysis analyzer — supports multiple timeframes"""
 import pandas as pd
 import pandas_ta_classic as ta
 from typing import Dict, Tuple
@@ -7,27 +7,44 @@ from .base import BaseAnalyzer
 from src.data.alpha_vantage import alpha_vantage_client
 from src.data.finnhub_client import finnhub_client
 
+# Maps each user-selectable timeframe to the yfinance interval and the minimum
+# period needed to produce 100+ candles for EMA-50 and other indicators.
+# yfinance limits: 1m → max 7d, 5m/15m/30m/60m → max 60d, 1d → unlimited.
+TIMEFRAME_CONFIG: Dict[str, Dict[str, str]] = {
+    "1m":  {"interval": "1m",  "period": "5d"},
+    "5m":  {"interval": "5m",  "period": "30d"},
+    "15m": {"interval": "15m", "period": "5d"},   # default
+    "30m": {"interval": "30m", "period": "10d"},
+    "1h":  {"interval": "60m", "period": "20d"},
+    "1D":  {"interval": "1d",  "period": "200d"},
+}
+
+
 class TechnicalAnalyzer(BaseAnalyzer):
-    """Analyzes 15-minute technical indicators"""
-    
+    """Analyzes technical indicators across selectable timeframes"""
+
     def analyze(self, symbol: str, **kwargs) -> Dict:
         """
-        Perform technical analysis on 15-min chart
-        
+        Perform technical analysis on the selected timeframe chart.
+
         Args:
             symbol: Trading symbol
-            **kwargs: Additional parameters (asset_class, etc.)
-            
+            **kwargs: asset_class (str), timeframe (str, default "15m")
+
         Returns:
             Dict with recommendation, score, price points
         """
         self.logger.info(f"Starting technical analysis for {symbol}")
-        
-        # Get asset class for symbol conversion
+
+        # Get asset class and timeframe from kwargs
         asset_class = kwargs.get('asset_class', 'stock')
-        
-        # Get 15-minute data
-        df = self._get_15min_data(symbol, asset_class)
+        timeframe = kwargs.get('timeframe', '15m')
+        if timeframe not in TIMEFRAME_CONFIG:
+            self.logger.warning(f"Unknown timeframe '{timeframe}', falling back to 15m")
+            timeframe = '15m'
+
+        # Fetch candle data for the selected timeframe
+        df = self._get_candle_data(symbol, asset_class, timeframe)
         
         if df.empty:
             self.logger.warning(f"No data available for {symbol}")
@@ -53,7 +70,7 @@ class TechnicalAnalyzer(BaseAnalyzer):
         confidence = self._calculate_confidence(score)
         
         self.logger.info(
-            f"Technical analysis complete: {recommendation} "
+            f"Technical analysis complete [{timeframe}]: {recommendation} "
             f"(score: {score:.1f}, confidence: {confidence:.1f}%)"
         )
         
@@ -77,28 +94,29 @@ class TechnicalAnalyzer(BaseAnalyzer):
             }
         }
     
-    def _get_15min_data(self, symbol: str, asset_class: str = "stock") -> pd.DataFrame:
-        """Fetch 15-minute OHLCV data with yfinance as primary source"""
+    def _get_candle_data(self, symbol: str, asset_class: str = "stock", timeframe: str = "15m") -> pd.DataFrame:
+        """Fetch OHLCV candle data for the given timeframe using yfinance as primary source."""
+        cfg = TIMEFRAME_CONFIG.get(timeframe, TIMEFRAME_CONFIG["15m"])
+        interval = cfg["interval"]
+        period = cfg["period"]
+
         # Priority 1: yfinance (free, reliable, no API key needed)
         try:
             from ..data.yfinance_backup import yfinance_backup
-            
+
             # Convert symbol to yfinance format
             yf_symbol = self._convert_to_yfinance_symbol(symbol, asset_class)
-            
-            # Use 5 days to get ~100+ candles (enough for all indicators including EMA50)
-            # 5 days * 6.5 trading hours * 4 candles per hour = ~130 candles
-            df = yfinance_backup.get_historical_data(yf_symbol, period="5d", interval="15m")
+
+            df = yfinance_backup.get_historical_data(yf_symbol, period=period, interval=interval)
             if df is not None and not df.empty:
-                # yfinance returns columns: Open, High, Low, Close, Volume
-                # Rename to lowercase for consistency
+                # yfinance returns columns: Open, High, Low, Close, Volume — normalise to lowercase
                 df.columns = [col.lower() for col in df.columns]
-                self.logger.info(f"yfinance: {len(df)} candles for {yf_symbol} (original: {symbol})")
+                self.logger.info(f"yfinance: {len(df)} candles for {yf_symbol} [{timeframe}] (original: {symbol})")
                 return df
         except Exception as e:
             self.logger.warning(f"yfinance failed for {symbol}: {e}")
-        
-        # Priority 2: Try Alpha Vantage as fallback
+
+        # Priority 2: Try Alpha Vantage as fallback (15m only — limited intervals available)
         try:
             df = alpha_vantage_client.get_intraday_data(symbol, interval="15min")
             if not df.empty:

@@ -47,6 +47,7 @@ class TradingSignal(BaseModel):
     # Additional data
     current_price: Optional[float] = Field(None, description="Current market price")
     asset_class: Optional[str] = Field(None, description="Asset class (stock, forex, commodity, crypto)")
+    timeframe: Optional[str] = Field("15m", description="Signal timeframe (1m, 5m, 15m, 30m, 1h, 1D)")
 
     # GPT-4o plain-English narrative explaining the full decision
     ai_explanation: Optional[str] = Field(None, description="GPT-4o plain-English explanation of the signal")
@@ -70,11 +71,13 @@ class TradingSignal(BaseModel):
 class SignalRequest(BaseModel):
     """Request model for generating a trading signal"""
     instrument: str = Field(..., min_length=1, max_length=20, description="Instrument name or symbol")
-    
+    timeframe: Optional[str] = Field("15m", description="Signal timeframe (1m, 5m, 15m, 30m, 1h, 1D)")
+
     class Config:
         json_schema_extra = {
             "example": {
-                "instrument": "AAPL"
+                "instrument": "AAPL",
+                "timeframe": "15m"
             }
         }
 
