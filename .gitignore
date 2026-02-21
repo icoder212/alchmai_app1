@@ -1,7 +1,6 @@
 .cursor/
 .venv/
 __pycache__/
-*.md
 
 backend/.env
 backend/.env.local
