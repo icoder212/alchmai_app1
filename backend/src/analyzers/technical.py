@@ -362,20 +362,23 @@ class TechnicalAnalyzer(BaseAnalyzer):
         if asset_class == "forex":
             return f"{symbol}=X"
         
-        # Commodities: Special mappings
+        # Commodities and indices: Special mappings - CHECK FIRST!
         commodity_map = {
             "XAUUSD": "GC=F",  # Gold futures
             "XAGUSD": "SI=F",  # Silver futures
             "CL": "CL=F",      # Crude oil futures
             "NG": "NG=F",      # Natural gas futures
+            # Indices
+            "NAS100": "^NDX",  # NASDAQ 100
+            "DJI": "^DJI",     # Dow Jones Industrial Average
         }
         if symbol in commodity_map:
             return commodity_map[symbol]
-        
+
         # Crypto: Add -USD suffix if not present
         if asset_class == "crypto" and "USD" not in symbol:
             return f"{symbol}-USD"
-        
+
         # Stocks: Use as-is
         return symbol
     

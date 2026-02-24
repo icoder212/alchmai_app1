@@ -47,9 +47,19 @@ def normalize_symbol(symbol: str) -> str:
         "AMAZON": "AMZN",
         "TESLA": "TSLA",
         "GOLD": "XAUUSD",
+        "XAUUSD": "XAUUSD",
         "SILVER": "XAGUSD",
         "CRUDE": "CL",
         "OIL": "CL",
+        # Indices
+        "NAS100": "NAS100",
+        "NASDAQ": "NAS100",
+        "NASDAQ100": "NAS100",
+        "NDX": "NAS100",
+        "DJI": "DJI",
+        "DOW": "DJI",
+        "DOWJONES": "DJI",
+        "DOW30": "DJI",
     }
     
     return symbol_map.get(normalized, normalized)

@@ -144,12 +144,15 @@ class InputProcessor:
         Returns:
             yfinance-compatible symbol
         """
-        # Commodities: Special mappings - CHECK FIRST!
+        # Commodities and indices: Special mappings - CHECK FIRST!
         commodity_map = {
             "XAUUSD": "GC=F",  # Gold futures
             "XAGUSD": "SI=F",  # Silver futures
             "CL": "CL=F",      # Crude oil futures
             "NG": "NG=F",      # Natural gas futures
+            # Indices
+            "NAS100": "^NDX",  # NASDAQ 100
+            "DJI": "^DJI",     # Dow Jones Industrial Average
         }
         if symbol in commodity_map:
             return commodity_map[symbol]

@@ -136,13 +136,12 @@ export const api = {
   getChartData: async (
     symbol: string,
     timeframe: string = "15m",
-    window: string = "1D",
     assetClass: string = "stock"
   ): Promise<ChartCandle[]> => {
     try {
       const response = await apiClient.get<ChartCandle[]>(
         `/market/chart/${symbol}`,
-        { params: { timeframe, window, asset_class: assetClass } }
+        { params: { timeframe, asset_class: assetClass } }
       );
       return response.data;
     } catch (error: any) {

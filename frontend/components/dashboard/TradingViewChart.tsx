@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createChart, IChartApi, ColorType, LineStyle } from "lightweight-charts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { getCardClass } from "@/lib/alchmai-theme";
 import { Sparkles, Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -20,9 +19,6 @@ interface TradingViewChartProps {
   assetClass?: string;
 }
 
-// How much history to show based on the selected view window
-type ViewWindow = "1D" | "1W" | "1M" | "3M";
-
 export function TradingViewChart({
   symbol,
   entryPrice,
@@ -34,7 +30,6 @@ export function TradingViewChart({
 }: TradingViewChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
-  const [viewWindow, setViewWindow] = useState<ViewWindow>("1D");
   const [loadingChart, setLoadingChart] = useState(false);
   const [chartError, setChartError] = useState("");
 
@@ -134,7 +129,7 @@ export function TradingViewChart({
     setLoadingChart(true);
     setChartError("");
 
-    api.getChartData(symbol, timeframe, viewWindow, assetClass)
+    api.getChartData(symbol, timeframe, assetClass)
       .then((candles) => {
         if (!candles || candles.length === 0) {
           setChartError("No chart data available for this symbol.");
@@ -145,7 +140,17 @@ export function TradingViewChart({
         candlestickSeries.setData(sorted as any);
         // Place the invisible line series at the same last timestamp so price lines render
         lineSeries.setData([{ time: sorted[sorted.length - 1].time as any, value: entryPrice }]);
-        chart.timeScale().fitContent();
+        // Default view: show the last 80 candles around the signal so the user gets
+        // immediate context. They can scroll left freely to see full history.
+        const visibleCandles = 80;
+        if (sorted.length > visibleCandles) {
+          chart.timeScale().setVisibleLogicalRange({
+            from: sorted.length - visibleCandles,
+            to: sorted.length - 1,
+          });
+        } else {
+          chart.timeScale().fitContent();
+        }
       })
       .catch(() => setChartError("Failed to load chart data."))
       .finally(() => setLoadingChart(false));
@@ -167,7 +172,7 @@ export function TradingViewChart({
         chartRef.current = null;
       }
     };
-  }, [symbol, entryPrice, stopLoss, takeProfit, signal, timeframe, viewWindow, assetClass]);
+  }, [symbol, entryPrice, stopLoss, takeProfit, signal, timeframe, assetClass]);
 
   return (
     <Card className={getCardClass(true, "border-alchmai-purple/30")}>
@@ -183,25 +188,9 @@ export function TradingViewChart({
             </span>
           </div>
 
-          {/* View window buttons — control how much history is shown, NOT the candle interval */}
-          <div className="flex items-center gap-1">
-            <span className="text-xs text-alchmai-text-secondary mr-1">View:</span>
-            {(["1D", "1W", "1M", "3M"] as ViewWindow[]).map((w) => (
-              <Button
-                key={w}
-                variant={viewWindow === w ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewWindow(w)}
-                className={
-                  viewWindow === w
-                    ? "bg-alchmai-purple hover:bg-alchmai-purple/90 text-white"
-                    : "border-alchmai-purple/30 text-alchmai-text-secondary hover:text-alchmai-text-primary"
-                }
-              >
-                {w}
-              </Button>
-            ))}
-          </div>
+          <span className="text-xs text-alchmai-text-secondary">
+            Scroll to explore history
+          </span>
         </div>
       </CardHeader>
 

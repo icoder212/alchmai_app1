@@ -138,6 +138,9 @@ def _to_yfinance_symbol(symbol: str, asset_class: str) -> str:
         "XAUUSD": "GC=F", "XAGUSD": "SI=F",
         "Gold": "GC=F", "Silver": "SI=F",
         "CL": "CL=F", "NG": "NG=F",
+        # Indices
+        "NAS100": "^NDX",  # NASDAQ 100
+        "DJI": "^DJI",     # Dow Jones Industrial Average
     }
     if symbol in commodity_map:
         return commodity_map[symbol]
@@ -150,31 +153,29 @@ def _to_yfinance_symbol(symbol: str, asset_class: str) -> str:
 async def get_chart_data(
     symbol: str,
     timeframe: str = "15m",
-    window: str = "1D",
     asset_class: str = "stock",
 ):
     """
     Return OHLCV candle data for the chart.
 
-    The timeframe (1m/5m/15m/30m/1h/1D) controls the candle interval.
-    The window (1D/1W/1M/3M) controls how much history is returned.
+    Always loads the maximum available history for the selected timeframe so
+    the user can scroll freely through all past price action.
 
     yfinance limits: 1m → max 7 days, 5m/15m/30m/60m → max 60 days, 1d → unlimited.
     """
+    # Maximum history per timeframe (respects yfinance hard limits)
+    CHART_HISTORY = {
+        "1m":  "7d",   # yfinance hard limit for 1-min data
+        "5m":  "60d",  # yfinance hard limit for sub-hour data
+        "15m": "60d",
+        "30m": "60d",
+        "1h":  "60d",
+        "1D":  "1y",   # 1 year of daily candles
+    }
     try:
         cfg = TIMEFRAME_CONFIG.get(timeframe, TIMEFRAME_CONFIG["15m"])
         interval = cfg["interval"]
-
-        # Map (timeframe, window) → yfinance period, respecting data availability limits
-        period_map = {
-            "1m":  {"1D": "1d",   "1W": "5d",   "1M": "7d",   "3M": "7d"},
-            "5m":  {"1D": "1d",   "1W": "5d",   "1M": "30d",  "3M": "60d"},
-            "15m": {"1D": "1d",   "1W": "5d",   "1M": "30d",  "3M": "60d"},
-            "30m": {"1D": "1d",   "1W": "5d",   "1M": "30d",  "3M": "60d"},
-            "1h":  {"1D": "1d",   "1W": "5d",   "1M": "30d",  "3M": "60d"},
-            "1D":  {"1D": "30d",  "1W": "90d",  "1M": "180d", "3M": "1y"},
-        }
-        period = period_map.get(timeframe, period_map["15m"]).get(window, "5d")
+        period = CHART_HISTORY.get(timeframe, "60d")
 
         yf_symbol = _to_yfinance_symbol(symbol, asset_class)
         df = yfinance_backup.get_historical_data(yf_symbol, period=period, interval=interval)
@@ -202,7 +203,7 @@ async def get_chart_data(
             except Exception:
                 continue
 
-        logger.info(f"Chart data: {len(candles)} candles for {symbol} [{timeframe}, {window}]")
+        logger.info(f"Chart data: {len(candles)} candles for {symbol} [{timeframe}]")
         return candles
 
     except HTTPException:

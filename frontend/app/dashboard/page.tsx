@@ -21,8 +21,14 @@ import { PerformanceMetrics } from "@/components/dashboard/PerformanceMetrics";
 import { getCardClass } from "@/lib/alchmai-theme";
 import { Sparkles } from "lucide-react";
 
-// Quick-access demo instruments shown as chips
-const DEMO_INSTRUMENTS = ["AAPL", "EURUSD", "Gold", "BTC", "MSFT", "GOOGL"];
+// Quick-access demo instruments — symbol is sent to the backend, label is shown to the user
+const DEMO_INSTRUMENTS = [
+  { symbol: "Xauusd",  label: "Gold"       },
+  { symbol: "nas100",  label: "Nasdaq 100" },
+  { symbol: "GBPUSD",  label: "GBP/USD"   },
+  { symbol: "TSLA",    label: "Tesla"      },
+  { symbol: "DJI",     label: "Dow Jones"  },
+];
 
 // Available OpenAI models for AI explanation
 const OPENAI_MODELS = [
@@ -344,15 +350,15 @@ export default function DashboardPage() {
 
                   {/* Quick demo chips */}
                   <div className="flex flex-wrap gap-2">
-                    {DEMO_INSTRUMENTS.map((sym) => (
+                    {DEMO_INSTRUMENTS.map((item) => (
                       <button
-                        key={sym}
+                        key={item.symbol}
                         type="button"
-                        onClick={() => handleDemoChip(sym)}
+                        onClick={() => handleDemoChip(item.symbol)}
                         disabled={loading}
                         className="px-3 py-1 text-xs rounded-full border border-alchmai-purple/30 text-alchmai-text-secondary hover:text-alchmai-text-primary hover:border-alchmai-purple/60 hover:bg-alchmai-purple/10 transition-all disabled:opacity-40"
                       >
-                        {sym}
+                        {item.label}
                       </button>
                     ))}
                   </div>
