@@ -117,6 +117,7 @@ class TradingSignalOrchestrator:
         economic: Dict,
         technical: Dict,
         sentiment: Dict,
+        llm=None,
     ) -> str:
         """
         Call GPT-4o to produce a single, rich plain-English paragraph that
@@ -155,9 +156,10 @@ CONSENSUS: {', '.join(agree) if agree else 'None'} agree on {signal.signal}. {',
 
 Write a 3-5 sentence explanation. Start directly with the insight — no preamble like "The AI system..." or "Based on the analysis...". Be direct, confident, and specific."""
 
-            response = self.llm.invoke(prompt)
+            active_llm = llm if llm is not None else self.llm
+            response = active_llm.invoke(prompt)
             explanation = response.content.strip()
-            logger.info(f"GPT-4o explanation generated for {symbol} ({len(explanation)} chars)")
+            logger.info(f"AI explanation generated for {symbol} using {active_llm.model_name} ({len(explanation)} chars)")
             return explanation
 
         except Exception as e:
@@ -175,20 +177,33 @@ Write a 3-5 sentence explanation. Start directly with the insight — no preambl
                 f"Stop loss: ${signal.stop_loss:.2f} | Take profit: ${signal.take_profit:.2f}."
             )
 
-    def generate_signal(self, instrument: str, timeframe: str = "15m") -> TradingSignal:
+    def generate_signal(self, instrument: str, timeframe: str = "15m", model: str = None) -> TradingSignal:
         """
         Generate trading signal for given instrument
 
         Args:
             instrument: Instrument name or symbol (e.g., "AAPL", "Apple")
             timeframe: Candle timeframe for technical analysis (1m, 5m, 15m, 30m, 1h, 1D)
+            model: OpenAI model name to use for AI explanation (e.g. "gpt-4o", "gpt-4o-mini")
 
         Returns:
             TradingSignal with complete analysis
         """
         start_time = time.time()
         api_calls = 0
-        
+
+        # Build a per-request LLM only when the caller picks a different model.
+        # The singleton self.llm is always kept as-is so FinBERT / agents are unaffected.
+        if model and model != self.llm.model_name:
+            request_llm = ChatOpenAI(
+                model=model,
+                temperature=settings.temperature,
+                api_key=settings.openai_api_key,
+            )
+            logger.info(f"Using per-request model: {model}")
+        else:
+            request_llm = None  # falls back to self.llm inside _generate_ai_explanation
+
         try:
             logger.info(f"Starting signal generation for: {instrument}")
             
@@ -271,6 +286,7 @@ Write a 3-5 sentence explanation. Start directly with the insight — no preambl
                 economic=economic_result,
                 technical=technical_result,
                 sentiment=sentiment_result,
+                llm=request_llm,
             )
             api_calls += 1  # one GPT-4o call
 

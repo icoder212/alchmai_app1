@@ -21,6 +21,7 @@ apiClient.interceptors.request.use((config) => {
 export interface SignalRequest {
   instrument: string;
   timeframe?: string;
+  model?: string;
 }
 
 export interface AgentAnalysis {
@@ -123,10 +124,11 @@ export const api = {
   },
 
   // Signals
-  generateSignal: async (instrument: string, timeframe: string = "15m"): Promise<SignalResponse> => {
+  generateSignal: async (instrument: string, timeframe: string = "15m", model: string = "gpt-4o-mini"): Promise<SignalResponse> => {
     const response = await apiClient.post<SignalResponse>("/signal", {
       instrument,
       timeframe,
+      model,
     });
     return response.data;
   },

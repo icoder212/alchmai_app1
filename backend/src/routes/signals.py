@@ -50,11 +50,12 @@ async def generate_signal(
     """
     try:
         timeframe = request.timeframe or "15m"
-        logger.info(f"Generating signal for {request.instrument} on {timeframe} timeframe")
+        model = request.model or "gpt-4o-mini"
+        logger.info(f"Generating signal for {request.instrument} on {timeframe} timeframe using {model}")
 
         # Use singleton orchestrator (FinBERT loads only once)
         orchestrator = _get_orchestrator()
-        signal = orchestrator.generate_signal(request.instrument, timeframe=timeframe)
+        signal = orchestrator.generate_signal(request.instrument, timeframe=timeframe, model=model)
         
         # Store signal in history
         from src.utils.signal_store import signal_store

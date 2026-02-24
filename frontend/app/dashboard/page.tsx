@@ -24,6 +24,14 @@ import { Sparkles } from "lucide-react";
 // Quick-access demo instruments shown as chips
 const DEMO_INSTRUMENTS = ["AAPL", "EURUSD", "Gold", "BTC", "MSFT", "GOOGL"];
 
+// Available OpenAI models for AI explanation
+const OPENAI_MODELS = [
+  { value: "gpt-4o-mini", label: "GPT-4o Mini", description: "Fast & efficient" },
+  { value: "gpt-4o",      label: "GPT-4o",      description: "Most capable"    },
+  { value: "gpt-4-turbo", label: "GPT-4 Turbo", description: "Powerful"        },
+  { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo", description: "Basic & fast" },
+];
+
 // Selectable signal timeframes
 const TIMEFRAMES = [
   { value: "1m",  label: "1m"  },
@@ -37,6 +45,7 @@ const TIMEFRAMES = [
 export default function DashboardPage() {
   const [instrument, setInstrument] = useState("");
   const [timeframe, setTimeframe] = useState("15m");
+  const [model, setModel] = useState("gpt-4o-mini");
   const [loading, setLoading] = useState(false);
   const [signal, setSignal] = useState<TradingSignal | null>(null);
   const [error, setError] = useState("");
@@ -131,7 +140,7 @@ export default function DashboardPage() {
     });
 
     try {
-      const response = await api.generateSignal(sym.trim(), timeframe);
+      const response = await api.generateSignal(sym.trim(), timeframe, model);
       timers.forEach(clearInterval);
 
       if (response.success && response.signal) {
@@ -314,6 +323,23 @@ export default function DashboardPage() {
                         {tf.label}
                       </button>
                     ))}
+                  </div>
+
+                  {/* Model selector */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-alchmai-text-secondary font-medium">AI Model:</span>
+                    <select
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      disabled={loading}
+                      className="text-xs bg-alchmai-darker border border-alchmai-purple/30 text-alchmai-text-primary rounded-md px-2 py-1 focus:outline-none focus:border-alchmai-purple disabled:opacity-40 cursor-pointer"
+                    >
+                      {OPENAI_MODELS.map((m) => (
+                        <option key={m.value} value={m.value}>
+                          {m.label} — {m.description}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Quick demo chips */}

@@ -72,12 +72,14 @@ class SignalRequest(BaseModel):
     """Request model for generating a trading signal"""
     instrument: str = Field(..., min_length=1, max_length=20, description="Instrument name or symbol")
     timeframe: Optional[str] = Field("15m", description="Signal timeframe (1m, 5m, 15m, 30m, 1h, 1D)")
+    model: Optional[str] = Field("gpt-4o-mini", description="OpenAI model to use for AI explanation")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "instrument": "AAPL",
-                "timeframe": "15m"
+                "timeframe": "15m",
+                "model": "gpt-4o-mini"
             }
         }
 
