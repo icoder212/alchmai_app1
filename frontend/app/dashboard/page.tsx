@@ -30,12 +30,17 @@ const DEMO_INSTRUMENTS = [
   { symbol: "DJI",     label: "Dow Jones"  },
 ];
 
-// Available OpenAI models for AI explanation
+// Available AI models for signal explanation
 const OPENAI_MODELS = [
-  { value: "gpt-4o-mini", label: "GPT-4o Mini", description: "Fast & efficient" },
-  { value: "gpt-4o",      label: "GPT-4o",      description: "Most capable"    },
-  { value: "gpt-4-turbo", label: "GPT-4 Turbo", description: "Powerful"        },
-  { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo", description: "Basic & fast" },
+  // OpenAI models
+  { value: "gpt-4o-mini",        label: "GPT-4o Mini",        description: "Fast & efficient"          },
+  { value: "gpt-4o",             label: "GPT-4o",             description: "Most capable"              },
+  { value: "gpt-4-turbo",        label: "GPT-4 Turbo",        description: "Powerful"                  },
+  { value: "gpt-3.5-turbo",      label: "GPT-3.5 Turbo",      description: "Basic & fast"              },
+  // Claude models — API key required (not yet configured)
+  { value: "claude-opus-4-6",    label: "Claude Opus 4.6",    description: "No API key configured"     },
+  { value: "claude-sonnet-4-6",  label: "Claude Sonnet 4.6",  description: "No API key configured"     },
+  { value: "claude-haiku-4-5",   label: "Claude Haiku 4.5",   description: "No API key configured"     },
 ];
 
 // Selectable signal timeframes
@@ -45,6 +50,7 @@ const TIMEFRAMES = [
   { value: "15m", label: "15m" },
   { value: "30m", label: "30m" },
   { value: "1h",  label: "1h"  },
+  { value: "4h",  label: "4h"  },
   { value: "1D",  label: "1D"  },
 ];
 
@@ -74,6 +80,9 @@ export default function DashboardPage() {
     changeType: "positive" as "positive" | "negative",
     hasPortfolio: false,
   });
+  const [agentWeights, setAgentWeights] = useState<{
+    fundamental: number; economic: number; technical: number; sentiment: number;
+  } | null>(null);
 
   const { latestSignal } = useSignalUpdates();
 
@@ -81,6 +90,7 @@ export default function DashboardPage() {
     fetchActiveSignals();
     fetchPerformanceMetrics();
     fetchPortfolioData();
+    api.getWeights().then(setAgentWeights).catch(() => {});
   }, []);
 
   const fetchActiveSignals = async () => {
@@ -408,16 +418,16 @@ export default function DashboardPage() {
                   </h2>
                   <div className="grid md:grid-cols-2 gap-3 auto-rows-fr">
                     <div className="animate-fade-slide-up-1 h-full">
-                      <AgentAnalysisCard title="Fundamental Analysis" analysis={signal.fundamental_analysis} />
+                      <AgentAnalysisCard title="Fundamental Analysis" analysis={signal.fundamental_analysis} weight={agentWeights?.fundamental} />
                     </div>
                     <div className="animate-fade-slide-up-2 h-full">
-                      <AgentAnalysisCard title="Economic Analysis" analysis={signal.economic_analysis} />
+                      <AgentAnalysisCard title="Economic Analysis" analysis={signal.economic_analysis} weight={agentWeights?.economic} />
                     </div>
                     <div className="animate-fade-slide-up-3 h-full">
-                      <AgentAnalysisCard title="Technical Analysis" analysis={signal.technical_analysis} />
+                      <AgentAnalysisCard title="Technical Analysis" analysis={signal.technical_analysis} weight={agentWeights?.technical} />
                     </div>
                     <div className="animate-fade-slide-up-4 h-full">
-                      <AgentAnalysisCard title="Sentiment Analysis" analysis={signal.sentiment_analysis} />
+                      <AgentAnalysisCard title="Sentiment Analysis" analysis={signal.sentiment_analysis} weight={agentWeights?.sentiment} />
                     </div>
                   </div>
                 </div>

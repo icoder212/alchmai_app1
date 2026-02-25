@@ -9,16 +9,22 @@ export function AlchmaiHeader() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-alchmai-purple/20 bg-alchmai-dark/95 backdrop-blur supports-[backdrop-filter]:bg-alchmai-dark/80">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        {/* Logo */}
+        {/* Logo — controlled by NEXT_PUBLIC_SHOW_LOGO in .env.local */}
         <Link href="/" className="flex items-center">
-          <Image
-            src="/alchmai-logo.png"
-            alt="Alchmai"
-            width={140}
-            height={40}
-            className="h-10 w-auto object-contain"
-            priority
-          />
+          {process.env.NEXT_PUBLIC_SHOW_LOGO === "true" ? (
+            <Image
+              src="/alchmai-logo.png"
+              alt="Alchmai"
+              width={140}
+              height={40}
+              className="h-10 w-auto object-contain"
+              priority
+            />
+          ) : (
+            <span className="text-xl font-bold text-alchmai-text-primary tracking-tight">
+              AiSigGen
+            </span>
+          )}
         </Link>
 
         {/* Navigation */}

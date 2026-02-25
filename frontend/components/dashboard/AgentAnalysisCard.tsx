@@ -8,6 +8,8 @@ import { BarChart2, Globe, TrendingUp, MessageSquare, type LucideIcon } from "lu
 interface AgentAnalysisCardProps {
   title: string;
   analysis: AgentAnalysis;
+  /** Live weight percentage from backend .env (e.g. 55 for 55%). Falls back to hardcoded default. */
+  weight?: number;
 }
 
 const AGENT_META: Record<
@@ -40,7 +42,7 @@ const AGENT_META: Record<
   },
 };
 
-export function AgentAnalysisCard({ title, analysis }: AgentAnalysisCardProps) {
+export function AgentAnalysisCard({ title, analysis, weight }: AgentAnalysisCardProps) {
   const isBuy = analysis.recommendation === "BUY";
   const isSell = analysis.recommendation === "SELL";
 
@@ -94,7 +96,7 @@ export function AgentAnalysisCard({ title, analysis }: AgentAnalysisCardProps) {
             </div>
           </div>
           <span className="text-xs font-semibold text-alchmai-purple bg-alchmai-purple/10 border border-alchmai-purple/30 px-2 py-0.5 rounded-full flex-shrink-0">
-            {meta.weight}
+            {weight !== undefined ? `${weight}%` : meta.weight}
           </span>
         </div>
       </CardHeader>

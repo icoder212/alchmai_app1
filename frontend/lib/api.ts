@@ -182,6 +182,17 @@ export const api = {
     }
   },
 
+  // Agent weights (live from backend .env)
+  getWeights: async (): Promise<{ fundamental: number; economic: number; technical: number; sentiment: number }> => {
+    try {
+      const response = await apiClient.get("/market/config/weights");
+      return response.data;
+    } catch {
+      // fallback to defaults matching config.py if endpoint unreachable
+      return { fundamental: 10, economic: 10, technical: 55, sentiment: 25 };
+    }
+  },
+
   // Market tickers
   getMarketTickers: async (): Promise<AssetTicker[]> => {
     try {

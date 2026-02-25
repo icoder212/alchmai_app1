@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from src.utils.logger import get_logger
 from src.data.yfinance_backup import yfinance_backup
 from src.analyzers.technical import TIMEFRAME_CONFIG
+from src.config import settings
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -130,6 +131,20 @@ async def get_market_tickers():
         raise HTTPException(status_code=500, detail="Failed to fetch market tickers")
 
 
+@router.get("/config/weights")
+async def get_config_weights():
+    """
+    Return the current agent weights as configured in .env so the frontend
+    can display them accurately without hardcoding.
+    """
+    return {
+        "fundamental": round(settings.fundamental_weight * 100),
+        "economic":    round(settings.economic_weight    * 100),
+        "technical":   round(settings.technical_weight   * 100),
+        "sentiment":   round(settings.sentiment_weight   * 100),
+    }
+
+
 def _to_yfinance_symbol(symbol: str, asset_class: str) -> str:
     """Convert a normalised signal symbol to a yfinance-compatible symbol."""
     if asset_class == "forex":
@@ -170,6 +185,7 @@ async def get_chart_data(
         "15m": "60d",
         "30m": "60d",
         "1h":  "60d",
+        "4h":  "60d",  # fetched as 1h then resampled to 4h
         "1D":  "1y",   # 1 year of daily candles
     }
     try:
@@ -185,6 +201,14 @@ async def get_chart_data(
 
         # Normalise column names
         df.columns = [col.lower() for col in df.columns]
+
+        # 4h: resample 1h data into 4-hour bars (yfinance has no native 4h interval)
+        if timeframe == "4h":
+            df = df.resample("4h").agg({
+                "open": "first", "high": "max",
+                "low": "min",   "close": "last",
+                "volume": "sum",
+            }).dropna()
 
         # Build lightweight-charts compatible OHLCV list
         candles = []

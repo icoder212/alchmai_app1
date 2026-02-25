@@ -16,6 +16,8 @@ TIMEFRAME_CONFIG: Dict[str, Dict[str, str]] = {
     "15m": {"interval": "15m", "period": "5d"},   # default
     "30m": {"interval": "30m", "period": "10d"},
     "1h":  {"interval": "60m", "period": "20d"},
+    # 4h: yfinance has no native 4h interval — fetch 1h and resample
+    "4h":  {"interval": "60m", "period": "60d"},
     "1D":  {"interval": "1d",  "period": "200d"},
 }
 
@@ -111,6 +113,13 @@ class TechnicalAnalyzer(BaseAnalyzer):
             if df is not None and not df.empty:
                 # yfinance returns columns: Open, High, Low, Close, Volume — normalise to lowercase
                 df.columns = [col.lower() for col in df.columns]
+                # 4h: resample 1h data into 4-hour bars (yfinance has no native 4h interval)
+                if timeframe == "4h":
+                    df = df.resample("4h").agg({
+                        "open": "first", "high": "max",
+                        "low": "min",   "close": "last",
+                        "volume": "sum",
+                    }).dropna()
                 self.logger.info(f"yfinance: {len(df)} candles for {yf_symbol} [{timeframe}] (original: {symbol})")
                 return df
         except Exception as e:

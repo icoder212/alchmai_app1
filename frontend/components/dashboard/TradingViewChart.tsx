@@ -32,12 +32,16 @@ export function TradingViewChart({
   const chartRef = useRef<IChartApi | null>(null);
   const [loadingChart, setLoadingChart] = useState(false);
   const [chartError, setChartError] = useState("");
+  // Chart-level timeframe — user can change candle size independently of the signal timeframe
+  const [chartTimeframe, setChartTimeframe] = useState(timeframe);
 
   // Timeframe → human-readable label for the chart header
   const TF_LABEL: Record<string, string> = {
     "1m": "1-Minute", "5m": "5-Minute", "15m": "15-Minute",
-    "30m": "30-Minute", "1h": "1-Hour", "1D": "Daily",
+    "30m": "30-Minute", "1h": "1-Hour", "4h": "4-Hour", "1D": "Daily",
   };
+
+  const CHART_TF_BUTTONS = ["1m", "5m", "15m", "30m", "1h", "4h", "1D"];
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -129,7 +133,7 @@ export function TradingViewChart({
     setLoadingChart(true);
     setChartError("");
 
-    api.getChartData(symbol, timeframe, assetClass)
+    api.getChartData(symbol, chartTimeframe, assetClass)
       .then((candles) => {
         if (!candles || candles.length === 0) {
           setChartError("No chart data available for this symbol.");
@@ -172,7 +176,7 @@ export function TradingViewChart({
         chartRef.current = null;
       }
     };
-  }, [symbol, entryPrice, stopLoss, takeProfit, signal, timeframe, assetClass]);
+  }, [symbol, entryPrice, stopLoss, takeProfit, signal, chartTimeframe, assetClass]);
 
   return (
     <Card className={getCardClass(true, "border-alchmai-purple/30")}>
@@ -188,9 +192,22 @@ export function TradingViewChart({
             </span>
           </div>
 
-          <span className="text-xs text-alchmai-text-secondary">
-            Scroll to explore history
-          </span>
+          {/* Chart-level candle interval buttons */}
+          <div className="flex items-center gap-1">
+            {CHART_TF_BUTTONS.map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setChartTimeframe(tf)}
+                className={`px-2 py-0.5 text-xs rounded border transition-all ${
+                  chartTimeframe === tf
+                    ? "bg-alchmai-purple border-alchmai-purple text-white font-semibold"
+                    : "border-alchmai-purple/30 text-alchmai-text-secondary hover:text-alchmai-text-primary hover:border-alchmai-purple/60"
+                }`}
+              >
+                {tf}
+              </button>
+            ))}
+          </div>
         </div>
       </CardHeader>
 
@@ -199,7 +216,7 @@ export function TradingViewChart({
         {loadingChart && (
           <div className="flex items-center justify-center h-12 mb-2 text-alchmai-text-secondary gap-2">
             <Loader2 className="w-4 h-4 animate-spin text-alchmai-purple" />
-            <span className="text-sm">Loading {TF_LABEL[timeframe] ?? timeframe} candles…</span>
+            <span className="text-sm">Loading {TF_LABEL[chartTimeframe] ?? chartTimeframe} candles…</span>
           </div>
         )}
         {chartError && !loadingChart && (
