@@ -51,12 +51,12 @@ export function AssetTickers({ onTickerClick }: AssetTickersProps) {
   return (
     <Card className={getCardClass(true, "border-alchmai-purple/30")}>
       <CardContent className="pt-6">
-        <div className="flex space-x-4 overflow-x-auto pb-2 scrollbar-hide">
+        <div className="grid grid-cols-5 gap-4">
           {tickers.map((ticker, idx) => (
             <div
               key={idx}
               onClick={() => onTickerClick?.(ticker.symbol)}
-              className="flex-shrink-0 p-4 rounded-lg border border-alchmai-purple/20 bg-alchmai-darker/50 hover:bg-alchmai-darker hover:border-alchmai-purple/40 cursor-pointer transition-all min-w-[140px]"
+              className="p-4 rounded-lg border border-alchmai-purple/20 bg-alchmai-darker/50 hover:bg-alchmai-darker hover:border-alchmai-purple/40 cursor-pointer transition-all"
             >
               <div className="text-sm font-semibold text-alchmai-text-primary mb-1">
                 {ticker.symbol}

@@ -45,12 +45,11 @@ async def get_market_tickers():
     try:
         # Popular assets to track
         assets = [
-            {"symbol": "AAPL", "yf_symbol": "AAPL"},
-            {"symbol": "GOOGL", "yf_symbol": "GOOGL"},
-            {"symbol": "BTC", "yf_symbol": "BTC-USD"},
-            {"symbol": "ETH", "yf_symbol": "ETH-USD"},
-            {"symbol": "Gold", "yf_symbol": "GC=F"},
-            {"symbol": "Silver", "yf_symbol": "SI=F"},
+            {"symbol": "Gold",   "yf_symbol": "GC=F"},
+            {"symbol": "NAS100", "yf_symbol": "^NDX"},
+            {"symbol": "GBPUSD", "yf_symbol": "GBPUSD=X"},
+            {"symbol": "TSLA",   "yf_symbol": "TSLA"},
+            {"symbol": "DJI",    "yf_symbol": "^DJI"},
         ]
         
         tickers = []
@@ -199,8 +198,11 @@ async def get_chart_data(
         if df is None or df.empty:
             raise HTTPException(status_code=404, detail=f"No chart data available for {symbol}")
 
-        # Normalise column names
-        df.columns = [col.lower() for col in df.columns]
+        # Normalise column names — safely handles MultiIndex (tuple) columns
+        df.columns = [
+            (col[0] if isinstance(col, tuple) else col).lower()
+            for col in df.columns
+        ]
 
         # 4h: resample 1h data into 4-hour bars (yfinance has no native 4h interval)
         if timeframe == "4h":

@@ -155,39 +155,34 @@ class DecisionSynthesizer:
             if take_profit >= entry_price:
                 take_profit = entry_price * (1 - _pp["tp"])
         
-        # Calculate confidence using only applicable agents.
-        # An agent is considered "not applicable" when it returns confidence=0 AND
-        # recommendation=NEUTRAL (e.g. Fundamental for commodities/forex/crypto).
-        # We re-normalize the weights across applicable agents so that N/A pillars
-        # do not unfairly drag the overall confidence down below the minimum threshold.
-        agent_results = {
-            "fundamental": fundamental,
-            "economic": economic,
-            "technical": technical,
-            "sentiment": sentiment,
-        }
-        applicable_weight_sum = 0.0
-        weighted_confidence_sum = 0.0
-        for agent_name, result in agent_results.items():
-            w = self.weights[agent_name]
-            conf = result["confidence"]
-            rec = result["recommendation"]
-            # Skip agents that are explicitly N/A (0 confidence + NEUTRAL)
-            if conf == 0.0 and rec == "NEUTRAL":
-                continue
-            applicable_weight_sum += w
-            weighted_confidence_sum += conf * w
+        # Weighted score = same formula the frontend "How the Score Was Calculated"
+        # modal shows as "Weighted Total" (0-100 scale, 50 = neutral).
+        # N/A agents (e.g. Fundamental for forex) contribute their neutral score of
+        # 50 × weight — they don't inflate confidence but don't unfairly drag it down.
+        weighted_score = (
+            fundamental["score"] * self.weights["fundamental"] +
+            economic["score"] * self.weights["economic"] +
+            technical["score"] * self.weights["technical"] +
+            sentiment["score"] * self.weights["sentiment"]
+        )
 
-        if applicable_weight_sum > 0:
-            confidence = weighted_confidence_sum / applicable_weight_sum
-        else:
-            # All agents are N/A — fall back to simple average
-            confidence = (
-                fundamental["confidence"] * self.weights["fundamental"] +
-                economic["confidence"] * self.weights["economic"] +
-                technical["confidence"] * self.weights["technical"] +
-                sentiment["confidence"] * self.weights["sentiment"]
-            )
+        # Confidence = how far the weighted score deviates from neutral (50),
+        # regardless of direction (BUY or SELL).
+        #
+        # Formula:  confidence = 50 + |weighted_score - 50|
+        #
+        # Examples:
+        #   weighted_score = 100  (max bullish)  → confidence = 100%  (certain BUY)
+        #   weighted_score =  79  (bullish)       → confidence =  79%  (matches modal for BUY)
+        #   weighted_score =  50  (neutral)       → confidence =  50%  (uncertain)
+        #   weighted_score =  24  (bearish)       → confidence =  76%  (strong SELL conviction)
+        #   weighted_score =   0  (max bearish)   → confidence = 100%  (certain SELL)
+        #
+        # For BUY signals (score > 50): confidence = 50 + (score − 50) = score
+        # → AI Confidence Score equals Weighted Total for BUY signals (no contradiction).
+        # For SELL signals (score < 50): confidence = 50 + (50 − score) = 100 − score
+        # → Symmetric: a score of 24 gives the same conviction as a score of 76.
+        confidence = 50.0 + abs(weighted_score - 50.0)
         
         # Create agent analysis objects
         fundamental_analysis = AgentAnalysis(
@@ -224,7 +219,7 @@ class DecisionSynthesizer:
         
         logger.info(
             f"Signal synthesized: {final_signal} "
-            f"(score: {final_score:.1f}, confidence: {confidence:.1f}%)"
+            f"(weighted_score: {weighted_score:.1f}, final_score: {final_score:.1f}, confidence: {confidence:.1f}%)"
         )
         
         return TradingSignal(

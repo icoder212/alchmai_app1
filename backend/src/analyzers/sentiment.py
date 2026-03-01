@@ -55,37 +55,49 @@ class SentimentAnalyzer(BaseAnalyzer):
             
             # Analyze sentiment of each article
             sentiments = self._analyze_sentiments(news)
-            
+
             if not sentiments:
                 return self._neutral_response("Could not analyze news sentiment")
-            
-            # Calculate aggregate sentiment
-            avg_sentiment = sum(s['score'] for s in sentiments) / len(sentiments)
-            
+
+            # Count positive vs negative news
+            positive_count = len([s for s in sentiments if s['score'] > 0])
+            negative_count = len([s for s in sentiments if s['score'] < 0])
+            neutral_count = len([s for s in sentiments if s['score'] == 0])
+            total_count = len(sentiments)
+
+            # Use count ratio as the primary signal — this is robust across both
+            # Alpha Vantage scores (small: ±0.05–0.20) and FinBERT scores (large:
+            # ±0.60–0.99).  Averaging raw scores across mixed sources collapses to
+            # near-zero even when 66% of articles are positive.
+            #
+            # ratio = (positive - negative) / total  →  -1.0 … +1.0
+            # score = 50 + ratio × 50                →  0 … 100
+            #
+            # Examples:
+            #   33 pos / 17 neg / 50 total  → ratio = +0.32 → score = 66   (BUY)
+            #   10 pos / 40 neg / 50 total  → ratio = -0.60 → score = 20   (SELL)
+            #   25 pos / 25 neg / 50 total  → ratio =  0.00 → score = 50   (NEUTRAL)
+            ratio = (positive_count - negative_count) / total_count  # -1 to +1
+            score_from_ratio = 50.0 + (ratio * 50.0)
+
             # Determine recommendation
-            if avg_sentiment > 0.1:
+            if ratio > 0.05:   # >52.5 % positive → BUY
                 recommendation = "BUY"
-                score = min(100, 50 + (avg_sentiment * 100))
-            elif avg_sentiment < -0.1:
+                score = min(100.0, score_from_ratio)
+            elif ratio < -0.05:  # <47.5 % positive → SELL
                 recommendation = "SELL"
-                score = max(0, 50 + (avg_sentiment * 100))
+                score = max(0.0, score_from_ratio)
             else:
                 recommendation = "NEUTRAL"
                 score = 50.0
 
             # Use the same score-based confidence formula as all other analyzers
-            # (avoids the raw avg_sentiment * 100 which collapses to ~12% on mixed news)
             confidence = self._calculate_confidence(score)
-            
-            # Count positive vs negative news
-            positive_count = len([s for s in sentiments if s['score'] > 0])
-            negative_count = len([s for s in sentiments if s['score'] < 0])
-            neutral_count = len([s for s in sentiments if s['score'] == 0])
             
             reasoning = (
                 f"{positive_count} positive, {negative_count} negative, "
                 f"{neutral_count} neutral news in last 24h "
-                f"(avg sentiment: {avg_sentiment:.3f})"
+                f"(sentiment ratio: {ratio:+.2f})"
             )
             
             self.logger.info(
@@ -98,7 +110,7 @@ class SentimentAnalyzer(BaseAnalyzer):
                 "score": score,
                 "reasoning": reasoning,
                 "confidence": confidence,
-                "avg_sentiment": round(avg_sentiment, 3),
+                "sentiment_ratio": round(ratio, 3),
                 "positive_count": positive_count,
                 "negative_count": negative_count,
                 "neutral_count": neutral_count
@@ -115,11 +127,25 @@ class SentimentAnalyzer(BaseAnalyzer):
         try:
             av_news = alpha_vantage_client.get_news_sentiment(symbol, limit=50)
             for article in av_news:
+                # Prefer the ticker-specific sentiment score (more accurate) over the
+                # article-wide overall_sentiment_score.  Alpha Vantage includes a
+                # ticker_sentiment[] array; we look for our symbol inside it.
+                ticker_score = None
+                for ts in article.get("ticker_sentiment", []):
+                    if ts.get("ticker", "").upper() == symbol.upper():
+                        ticker_score = float(ts.get("ticker_sentiment_score", 0))
+                        break
+                # Fall back to overall score only when the ticker isn't listed
+                sentiment_score = (
+                    ticker_score
+                    if ticker_score is not None
+                    else article.get("overall_sentiment_score", 0)
+                )
                 news.append({
                     "title": article.get("title", ""),
                     "summary": article.get("summary", ""),
                     "published": article.get("time_published", ""),
-                    "sentiment_score": article.get("overall_sentiment_score", 0)
+                    "sentiment_score": sentiment_score
                 })
         except Exception as e:
             self.logger.warning(f"Alpha Vantage news failed: {e}")

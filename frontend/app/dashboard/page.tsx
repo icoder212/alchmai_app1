@@ -37,10 +37,10 @@ const OPENAI_MODELS = [
   { value: "gpt-4o",             label: "GPT-4o",             description: "Most capable"              },
   { value: "gpt-4-turbo",        label: "GPT-4 Turbo",        description: "Powerful"                  },
   { value: "gpt-3.5-turbo",      label: "GPT-3.5 Turbo",      description: "Basic & fast"              },
-  // Claude models — API key required (not yet configured)
-  { value: "claude-opus-4-6",    label: "Claude Opus 4.6",    description: "No API key configured"     },
-  { value: "claude-sonnet-4-6",  label: "Claude Sonnet 4.6",  description: "No API key configured"     },
-  { value: "claude-haiku-4-5",   label: "Claude Haiku 4.5",   description: "No API key configured"     },
+  // Claude models
+  { value: "claude-opus-4-6",    label: "Claude Opus 4.6",    description: "Most powerful Claude"      },
+  { value: "claude-sonnet-4-6",  label: "Claude Sonnet 4.6",  description: "Balanced Claude"           },
+  { value: "claude-haiku-4-5",   label: "Claude Haiku 4.5",   description: "Fast & efficient Claude"   },
 ];
 
 // Selectable signal timeframes
@@ -258,189 +258,185 @@ export default function DashboardPage() {
           <PerformanceMetrics {...performanceMetrics} />
         </div>
 
-        {/* ── Main Content + Sidebar ── */}
-        <div className="grid lg:grid-cols-4 gap-4 items-start">
-          <div className="lg:col-span-3 space-y-4">
+        {/* ── Recent Signals — horizontal strip, above the generate form ── */}
+        <div className="mb-4">
+          <SignalHistory onSelectSignal={setSignal} latestSignal={signal} />
+        </div>
 
-            {/* WebSocket live-signal notification */}
-            {latestSignal && latestSignal.instrument !== signal?.instrument && (
-              <Card className={getCardClass(true, "border-alchmai-blue bg-alchmai-blue/10")}>
-                <CardContent className="py-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-alchmai-blue text-sm">
-                      New signal: <strong>{latestSignal.instrument}</strong> — {latestSignal.signal}
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="link"
-                      onClick={() => setSignal(latestSignal)}
-                      className="text-alchmai-blue p-0"
-                    >
-                      View
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+        {/* ── Main Content (full width) ── */}
+        <div className="space-y-4">
 
-            {/* ── Signal Generation Form ── */}
-            <Card className={getCardClass(true, "border-alchmai-purple/30")} id="signal-form">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-bold text-alchmai-text-primary flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-alchmai-purple" />
-                  Generate a Signal
-                </CardTitle>
-                <CardDescription className="text-alchmai-text-secondary">
-                  Enter any stock, forex pair, or commodity — or click a chip below
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleGenerateSignal} className="space-y-3">
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <Label htmlFor="instrument" className="text-alchmai-text-primary text-sm mb-1 block">
-                        Instrument
-                      </Label>
-                      <Input
-                        id="instrument"
-                        placeholder="AAPL · Apple · EURUSD · Gold · BTC…"
-                        value={instrument}
-                        onChange={(e) => setInstrument(e.target.value)}
-                        disabled={loading}
-                        className="bg-alchmai-darker border-alchmai-purple/30 text-alchmai-text-primary placeholder:text-alchmai-text-secondary/40"
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      <Button
-                        type="submit"
-                        disabled={loading || !instrument.trim()}
-                        className="bg-alchmai-purple hover:bg-alchmai-purple/90 text-white glow-purple"
-                      >
-                        {loading ? "Analysing…" : "Generate"}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Timeframe selector */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-alchmai-text-secondary font-medium">Timeframe:</span>
-                    {TIMEFRAMES.map((tf) => (
-                      <button
-                        key={tf.value}
-                        type="button"
-                        onClick={() => setTimeframe(tf.value)}
-                        disabled={loading}
-                        className={`px-3 py-1 text-xs rounded-full border transition-all disabled:opacity-40 ${
-                          timeframe === tf.value
-                            ? "bg-alchmai-purple/20 border-alchmai-purple text-alchmai-purple font-semibold"
-                            : "border-alchmai-purple/30 text-alchmai-text-secondary hover:text-alchmai-text-primary hover:border-alchmai-purple/60"
-                        }`}
-                      >
-                        {tf.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Model selector */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-alchmai-text-secondary font-medium">AI Model:</span>
-                    <select
-                      value={model}
-                      onChange={(e) => setModel(e.target.value)}
-                      disabled={loading}
-                      className="text-xs bg-alchmai-darker border border-alchmai-purple/30 text-alchmai-text-primary rounded-md px-2 py-1 focus:outline-none focus:border-alchmai-purple disabled:opacity-40 cursor-pointer"
-                    >
-                      {OPENAI_MODELS.map((m) => (
-                        <option key={m.value} value={m.value}>
-                          {m.label} — {m.description}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Quick demo chips */}
-                  <div className="flex flex-wrap gap-2">
-                    {DEMO_INSTRUMENTS.map((item) => (
-                      <button
-                        key={item.symbol}
-                        type="button"
-                        onClick={() => handleDemoChip(item.symbol)}
-                        disabled={loading}
-                        className="px-3 py-1 text-xs rounded-full border border-alchmai-purple/30 text-alchmai-text-secondary hover:text-alchmai-text-primary hover:border-alchmai-purple/60 hover:bg-alchmai-purple/10 transition-all disabled:opacity-40"
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
-                </form>
+          {/* WebSocket live-signal notification */}
+          {latestSignal && latestSignal.instrument !== signal?.instrument && (
+            <Card className={getCardClass(true, "border-alchmai-blue bg-alchmai-blue/10")}>
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-alchmai-blue text-sm">
+                    New signal: <strong>{latestSignal.instrument}</strong> — {latestSignal.signal}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="link"
+                    onClick={() => setSignal(latestSignal)}
+                    className="text-alchmai-blue p-0"
+                  >
+                    View
+                  </Button>
+                </div>
               </CardContent>
             </Card>
+          )}
 
-            {/* ── Agent Activity ── */}
-            {(loading || agentStatus.some((a) => a.status !== "idle")) && (
-              <AgentActivityIndicator agents={agentStatus} show />
-            )}
-
-            {/* ── Error ── */}
-            {error && (
-              <Card className={getCardClass(false, "border-alchmai-danger/50")}>
-                <CardContent className="py-4">
-                  <p className="text-alchmai-danger text-sm">{error}</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ── Signal Result ── */}
-            {signal && (
-              <div className="space-y-4">
-                {/* SignalCard slides in */}
-                <div className="animate-fade-slide-up">
-                  <SignalCard signal={signal} />
+          {/* ── Signal Generation Form ── */}
+          <Card className={getCardClass(true, "border-alchmai-purple/30")} id="signal-form">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg font-bold text-alchmai-text-primary flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-alchmai-purple" />
+                Generate a Signal
+              </CardTitle>
+              <CardDescription className="text-alchmai-text-secondary">
+                Enter any stock, forex pair, or commodity — or click a chip below
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleGenerateSignal} className="space-y-3">
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <Label htmlFor="instrument" className="text-alchmai-text-primary text-sm mb-1 block">
+                      Instrument
+                    </Label>
+                    <Input
+                      id="instrument"
+                      placeholder="AAPL · Apple · EURUSD · Gold · BTC…"
+                      value={instrument}
+                      onChange={(e) => setInstrument(e.target.value)}
+                      disabled={loading}
+                      className="bg-alchmai-darker border-alchmai-purple/30 text-alchmai-text-primary placeholder:text-alchmai-text-secondary/40"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <Button
+                      type="submit"
+                      disabled={loading || !instrument.trim()}
+                      className="bg-alchmai-purple hover:bg-alchmai-purple/90 text-white glow-purple"
+                    >
+                      {loading ? "Analysing…" : "Generate"}
+                    </Button>
+                  </div>
                 </div>
 
-                {/* Chart slides in slightly after */}
-                <div className="animate-fade-slide-up-1">
-                  <TradingViewChart
-                    symbol={signal.instrument}
-                    entryPrice={signal.entry_price}
-                    stopLoss={signal.stop_loss}
-                    takeProfit={signal.take_profit}
-                    signal={signal.signal as "BUY" | "SELL"}
-                    timeframe={signal.timeframe || timeframe}
-                    assetClass={signal.asset_class || "stock"}
-                  />
+                {/* Timeframe selector */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-alchmai-text-secondary font-medium">Timeframe:</span>
+                  {TIMEFRAMES.map((tf) => (
+                    <button
+                      key={tf.value}
+                      type="button"
+                      onClick={() => setTimeframe(tf.value)}
+                      disabled={loading}
+                      className={`px-3 py-1 text-xs rounded-full border transition-all disabled:opacity-40 ${
+                        timeframe === tf.value
+                          ? "bg-alchmai-purple/20 border-alchmai-purple text-alchmai-purple font-semibold"
+                          : "border-alchmai-purple/30 text-alchmai-text-secondary hover:text-alchmai-text-primary hover:border-alchmai-purple/60"
+                      }`}
+                    >
+                      {tf.label}
+                    </button>
+                  ))}
                 </div>
 
-                {/* Agent cards staggered */}
-                <div className="animate-fade-slide-up-2">
-                  <h2 className="text-sm font-semibold text-alchmai-text-secondary uppercase tracking-wider mb-3">
-                    What each agent found
-                  </h2>
-                  <div className="grid md:grid-cols-2 gap-3 auto-rows-fr">
-                    <div className="animate-fade-slide-up-1 h-full">
-                      <AgentAnalysisCard title="Fundamental Analysis" analysis={signal.fundamental_analysis} weight={agentWeights?.fundamental} />
-                    </div>
-                    <div className="animate-fade-slide-up-2 h-full">
-                      <AgentAnalysisCard title="Economic Analysis" analysis={signal.economic_analysis} weight={agentWeights?.economic} />
-                    </div>
-                    <div className="animate-fade-slide-up-3 h-full">
-                      <AgentAnalysisCard title="Technical Analysis" analysis={signal.technical_analysis} weight={agentWeights?.technical} />
-                    </div>
-                    <div className="animate-fade-slide-up-4 h-full">
-                      <AgentAnalysisCard title="Sentiment Analysis" analysis={signal.sentiment_analysis} weight={agentWeights?.sentiment} />
-                    </div>
+                {/* Model selector */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-alchmai-text-secondary font-medium">AI Model:</span>
+                  <select
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    disabled={loading}
+                    className="text-xs bg-alchmai-darker border border-alchmai-purple/30 text-alchmai-text-primary rounded-md px-2 py-1 focus:outline-none focus:border-alchmai-purple disabled:opacity-40 cursor-pointer"
+                  >
+                    {OPENAI_MODELS.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label} — {m.description}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Quick demo chips */}
+                <div className="flex flex-wrap gap-2">
+                  {DEMO_INSTRUMENTS.map((item) => (
+                    <button
+                      key={item.symbol}
+                      type="button"
+                      onClick={() => handleDemoChip(item.symbol)}
+                      disabled={loading}
+                      className="px-3 py-1 text-xs rounded-full border border-alchmai-purple/30 text-alchmai-text-secondary hover:text-alchmai-text-primary hover:border-alchmai-purple/60 hover:bg-alchmai-purple/10 transition-all disabled:opacity-40"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* ── Agent Activity ── */}
+          {(loading || agentStatus.some((a) => a.status !== "idle")) && (
+            <AgentActivityIndicator agents={agentStatus} show />
+          )}
+
+          {/* ── Error ── */}
+          {error && (
+            <Card className={getCardClass(false, "border-alchmai-danger/50")}>
+              <CardContent className="py-4">
+                <p className="text-alchmai-danger text-sm">{error}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* ── Signal Result ── */}
+          {signal && (
+            <div className="space-y-4">
+              {/* SignalCard slides in */}
+              <div className="animate-fade-slide-up">
+                <SignalCard signal={signal} agentWeights={agentWeights ?? undefined} model={model} />
+              </div>
+
+              {/* Chart slides in slightly after */}
+              <div className="animate-fade-slide-up-1">
+                <TradingViewChart
+                  symbol={signal.instrument}
+                  entryPrice={signal.entry_price}
+                  stopLoss={signal.stop_loss}
+                  takeProfit={signal.take_profit}
+                  signal={signal.signal as "BUY" | "SELL"}
+                  timeframe={signal.timeframe || timeframe}
+                  assetClass={signal.asset_class || "stock"}
+                />
+              </div>
+
+              {/* Agent cards staggered */}
+              <div className="animate-fade-slide-up-2">
+                <h2 className="text-sm font-semibold text-alchmai-text-secondary uppercase tracking-wider mb-3">
+                  What each agent found
+                </h2>
+                <div className="grid md:grid-cols-2 gap-3 auto-rows-fr">
+                  <div className="animate-fade-slide-up-1 h-full">
+                    <AgentAnalysisCard title="Fundamental Analysis" analysis={signal.fundamental_analysis} weight={agentWeights?.fundamental} />
+                  </div>
+                  <div className="animate-fade-slide-up-2 h-full">
+                    <AgentAnalysisCard title="Economic Analysis" analysis={signal.economic_analysis} weight={agentWeights?.economic} />
+                  </div>
+                  <div className="animate-fade-slide-up-3 h-full">
+                    <AgentAnalysisCard title="Technical Analysis" analysis={signal.technical_analysis} weight={agentWeights?.technical} />
+                  </div>
+                  <div className="animate-fade-slide-up-4 h-full">
+                    <AgentAnalysisCard title="Sentiment Analysis" analysis={signal.sentiment_analysis} weight={agentWeights?.sentiment} />
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* ── Sidebar ── */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-4">
-              <SignalHistory onSelectSignal={setSignal} />
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

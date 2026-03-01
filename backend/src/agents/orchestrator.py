@@ -159,11 +159,14 @@ Write a 3-5 sentence explanation. Start directly with the insight — no preambl
             active_llm = llm if llm is not None else self.llm
             response = active_llm.invoke(prompt)
             explanation = response.content.strip()
-            logger.info(f"AI explanation generated for {symbol} using {active_llm.model_name} ({len(explanation)} chars)")
+            llm_model_name = getattr(active_llm, 'model_name', None) or getattr(active_llm, 'model', 'unknown')
+            logger.info(f"AI explanation generated for {symbol} using {llm_model_name} ({len(explanation)} chars)")
             return explanation
 
         except Exception as e:
-            logger.warning(f"GPT-4o explanation failed for {symbol}: {e}")
+            used_llm = llm if llm is not None else self.llm
+            llm_id = getattr(used_llm, 'model_name', None) or getattr(used_llm, 'model', 'unknown')
+            logger.warning(f"AI explanation failed for {symbol} (model: {llm_id}): {e}")
             # Graceful fallback — never block signal delivery
             agents_text = ", ".join(
                 f"{n}: {a['recommendation']}"
@@ -195,11 +198,24 @@ Write a 3-5 sentence explanation. Start directly with the insight — no preambl
         # Build a per-request LLM only when the caller picks a different model.
         # The singleton self.llm is always kept as-is so FinBERT / agents are unaffected.
         if model and model != self.llm.model_name:
-            request_llm = ChatOpenAI(
-                model=model,
-                temperature=settings.temperature,
-                api_key=settings.openai_api_key,
-            )
+            if model.startswith("claude-"):
+                if not settings.anthropic_api_key:
+                    raise ValueError(
+                        "Anthropic API key is required for Claude models. "
+                        "Please set ANTHROPIC_API_KEY in your .env file."
+                    )
+                from langchain_anthropic import ChatAnthropic
+                request_llm = ChatAnthropic(
+                    model=model,
+                    temperature=settings.temperature,
+                    api_key=settings.anthropic_api_key,
+                )
+            else:
+                request_llm = ChatOpenAI(
+                    model=model,
+                    temperature=settings.temperature,
+                    api_key=settings.openai_api_key,
+                )
             logger.info(f"Using per-request model: {model}")
         else:
             request_llm = None  # falls back to self.llm inside _generate_ai_explanation
@@ -274,9 +290,11 @@ Write a 3-5 sentence explanation. Start directly with the insight — no preambl
                 asset_class=asset_class
             )
 
-            # Step 4: GPT-4o plain-English explanation (runs after synthesis so it
+            # Step 4: AI plain-English explanation (runs after synthesis so it
             # can reference the final signal direction and all 4 agent outputs)
-            logger.info("Generating GPT-4o narrative explanation...")
+            active_llm = request_llm if request_llm is not None else self.llm
+            active_model_id = getattr(active_llm, 'model_name', None) or getattr(active_llm, 'model', 'unknown')
+            logger.info(f"Generating {active_model_id} narrative explanation...")
             signal.ai_explanation = self._generate_ai_explanation(
                 symbol=symbol,
                 asset_class=asset_class,
@@ -288,7 +306,7 @@ Write a 3-5 sentence explanation. Start directly with the insight — no preambl
                 sentiment=sentiment_result,
                 llm=request_llm,
             )
-            api_calls += 1  # one GPT-4o call
+            api_calls += 1  # one LLM call
 
             # Step 5: Validate signal
             logger.info("Validating signal...")

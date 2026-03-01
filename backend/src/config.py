@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     
     # API Keys
     openai_api_key: Optional[str] = None
+    anthropic_api_key: Optional[str] = None
     alpha_vantage_key: Optional[str] = None
     finnhub_key: Optional[str] = None
     fred_api_key: Optional[str] = None

@@ -11,6 +11,24 @@ import { ExplainDecisionModal } from "./ExplainDecisionModal";
 
 interface SignalCardProps {
   signal: TradingSignal;
+  agentWeights?: { fundamental: number; economic: number; technical: number; sentiment: number };
+  /** Model used to generate the signal explanation */
+  model?: string;
+}
+
+/** Convert a model ID to a short human-readable label for the inline badge */
+function modelBadgeLabel(model?: string): string {
+  if (!model) return "AI Analysis";
+  const map: Record<string, string> = {
+    "gpt-4o":            "GPT-4o Analysis",
+    "gpt-4o-mini":       "GPT-4o Mini Analysis",
+    "gpt-4-turbo":       "GPT-4 Turbo Analysis",
+    "gpt-3.5-turbo":     "GPT-3.5 Turbo Analysis",
+    "claude-opus-4-6":   "Claude Opus 4.6 Analysis",
+    "claude-sonnet-4-6": "Claude Sonnet 4.6 Analysis",
+    "claude-haiku-4-5":  "Claude Haiku 4.5 Analysis",
+  };
+  return map[model] ?? `${model} Analysis`;
 }
 
 /** Fallback summary used only when GPT-4o explanation is unavailable */
@@ -44,7 +62,7 @@ function buildFallbackSummary(signal: TradingSignal): string {
   } Confidence: ${signal.confidence.toFixed(1)}%.`;
 }
 
-export function SignalCard({ signal }: SignalCardProps) {
+export function SignalCard({ signal, agentWeights, model }: SignalCardProps) {
   const [showExplainModal, setShowExplainModal] = useState(false);
 
   const isBuy = signal.signal === "BUY";
@@ -128,7 +146,7 @@ export function SignalCard({ signal }: SignalCardProps) {
               <div className="flex items-center gap-1.5 mb-2">
                 <Sparkles className="w-3.5 h-3.5 text-alchmai-purple" />
                 <span className="text-[10px] font-semibold text-alchmai-purple uppercase tracking-wider">
-                  GPT-4o Analysis
+                  {modelBadgeLabel(model)}
                 </span>
               </div>
             )}
@@ -259,6 +277,8 @@ export function SignalCard({ signal }: SignalCardProps) {
         signal={signal}
         open={showExplainModal}
         onOpenChange={setShowExplainModal}
+        agentWeights={agentWeights}
+        model={model}
       />
     </>
   );

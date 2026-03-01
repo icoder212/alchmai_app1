@@ -11,23 +11,54 @@ import { TradingSignal } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Sparkles, TrendingUp, TrendingDown, Brain, ArrowDown } from "lucide-react";
 
+interface AgentWeights {
+  fundamental: number;
+  economic: number;
+  technical: number;
+  sentiment: number;
+}
+
 interface ExplainDecisionModalProps {
   signal: TradingSignal;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Agent weights as percentages (0-100) fetched from backend. Falls back to config defaults. */
+  agentWeights?: AgentWeights;
+  /** Model used to generate the AI explanation */
+  model?: string;
+}
+
+/** Convert a model ID to a short human-readable label */
+function modelLabel(model?: string): string {
+  if (!model) return "AI Analysis";
+  const map: Record<string, string> = {
+    "gpt-4o":           "GPT-4o Analysis",
+    "gpt-4o-mini":      "GPT-4o Mini Analysis",
+    "gpt-4-turbo":      "GPT-4 Turbo Analysis",
+    "gpt-3.5-turbo":    "GPT-3.5 Turbo Analysis",
+    "claude-opus-4-6":  "Claude Opus 4.6 Analysis",
+    "claude-sonnet-4-6":"Claude Sonnet 4.6 Analysis",
+    "claude-haiku-4-5": "Claude Haiku 4.5 Analysis",
+  };
+  return map[model] ?? `${model} Analysis`;
 }
 
 export function ExplainDecisionModal({
   signal,
   open,
   onOpenChange,
+  agentWeights,
+  model,
 }: ExplainDecisionModalProps) {
-  const weights = {
-    technical: 0.40,
-    sentiment: 0.25,
-    fundamental: 0.20,
-    economic: 0.15,
-  };
+  // Use live weights from backend (as fractions). Fallback = correct config.py defaults.
+  const weights = agentWeights
+    ? {
+        technical:   agentWeights.technical   / 100,
+        sentiment:   agentWeights.sentiment   / 100,
+        fundamental: agentWeights.fundamental / 100,
+        economic:    agentWeights.economic    / 100,
+      }
+    : { technical: 0.55, sentiment: 0.25, fundamental: 0.10, economic: 0.10 };
 
   const agents = [
     {
@@ -91,13 +122,13 @@ export function ExplainDecisionModal({
 
         <div className="space-y-6 mt-2">
 
-          {/* ── GPT-4o Narrative — the WOW section ── */}
+          {/* ── AI Narrative — the WOW section ── */}
           {signal.ai_explanation && (
             <div className="rounded-xl border border-alchmai-purple/40 bg-alchmai-purple/5 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Sparkles className="w-4 h-4 text-alchmai-purple" />
                 <span className="text-xs font-semibold text-alchmai-purple uppercase tracking-wider">
-                  GPT-4o Analysis
+                  {modelLabel(model)}
                 </span>
               </div>
               <p className="text-base text-alchmai-text-primary leading-relaxed font-medium">
@@ -202,10 +233,10 @@ export function ExplainDecisionModal({
             </h3>
             <div className="rounded-xl border border-alchmai-purple/20 bg-alchmai-darker/50 p-4 space-y-2 text-sm">
               {[
-                { label: "Technical Analysis", score: signal.technical_analysis.score, weight: weights.technical },
-                { label: "Sentiment Analysis", score: signal.sentiment_analysis.score, weight: weights.sentiment },
+                { label: "Technical Analysis",   score: signal.technical_analysis.score,   weight: weights.technical   },
+                { label: "Sentiment Analysis",   score: signal.sentiment_analysis.score,   weight: weights.sentiment   },
                 { label: "Fundamental Analysis", score: signal.fundamental_analysis.score, weight: weights.fundamental },
-                { label: "Economic Analysis", score: signal.economic_analysis.score, weight: weights.economic },
+                { label: "Economic Analysis",    score: signal.economic_analysis.score,    weight: weights.economic    },
               ].map((row, i) => (
                 <div key={i} className="flex items-center justify-between">
                   <span className="text-alchmai-text-secondary">{row.label}</span>
@@ -215,9 +246,22 @@ export function ExplainDecisionModal({
                   </span>
                 </div>
               ))}
+              {/* Weighted Total row */}
               <div className="mt-3 pt-3 border-t border-alchmai-purple/20 flex justify-between font-bold">
                 <span className="text-alchmai-text-primary">Weighted Total</span>
                 <span className="text-alchmai-purple text-lg">{calculateWeightedScore().toFixed(1)} / 100</span>
+              </div>
+              {/* Confidence derivation row — shows the formula that converts weighted
+                  score to signal conviction (symmetric around 50).
+                  For BUY  (score > 50): confidence = score           → numbers match.
+                  For SELL (score < 50): confidence = 100 − score     → symmetric. */}
+              <div className="flex items-center justify-between text-xs text-alchmai-text-secondary/80 pt-1.5">
+                <span>
+                  Signal Conviction = 50 + |{calculateWeightedScore().toFixed(1)} − 50|
+                </span>
+                <span className={`font-semibold ${isBuy ? "text-alchmai-success" : "text-alchmai-danger"}`}>
+                  = {signal.confidence.toFixed(1)}%
+                </span>
               </div>
             </div>
           </div>
@@ -229,13 +273,18 @@ export function ExplainDecisionModal({
             </h3>
             <div className="rounded-xl border border-alchmai-purple/20 bg-alchmai-darker/50 p-4">
               <div className="flex flex-col items-start gap-1">
-                {[
+                {(() => {
+                  const ws = calculateWeightedScore();
+                  const dirLabel = ws > 50 ? "bullish" : ws < 50 ? "bearish" : "neutral";
+                  const validationPassed = signal.confidence >= 50;
+                  return [
                   { step: "1", label: "Input", value: signal.instrument, color: "border-alchmai-purple text-alchmai-purple bg-alchmai-purple/10" },
                   { step: "2", label: "4 Agents (Parallel)", value: `F:${signal.fundamental_analysis.recommendation} · E:${signal.economic_analysis.recommendation} · T:${signal.technical_analysis.recommendation} · S:${signal.sentiment_analysis.recommendation}`, color: "border-alchmai-blue text-alchmai-blue bg-alchmai-blue/10" },
-                  { step: "3", label: "Weighted Score", value: `${calculateWeightedScore().toFixed(1)} / 100`, color: "border-alchmai-purple text-alchmai-purple bg-alchmai-purple/10" },
-                  { step: "4", label: "Final Signal", value: `${signal.signal} · ${signal.confidence.toFixed(1)}% confidence`, color: `${signal.signal === "BUY" ? "border-alchmai-success text-alchmai-success bg-alchmai-success/10" : "border-alchmai-danger text-alchmai-danger bg-alchmai-danger/10"}` },
-                  { step: "5", label: "Safety Validation", value: "✓ All checks passed", color: "border-alchmai-success text-alchmai-success bg-alchmai-success/10" },
-                ].map((item, i, arr) => (
+                  { step: "3", label: "Directional Score (50 = neutral)", value: `${ws.toFixed(1)} / 100 (${dirLabel})`, color: "border-alchmai-purple text-alchmai-purple bg-alchmai-purple/10" },
+                  { step: "4", label: "Final Signal", value: `${signal.signal} · ${signal.confidence.toFixed(1)}% conviction`, color: `${signal.signal === "BUY" ? "border-alchmai-success text-alchmai-success bg-alchmai-success/10" : "border-alchmai-danger text-alchmai-danger bg-alchmai-danger/10"}` },
+                  { step: "5", label: "Safety Validation", value: validationPassed ? "✓ All checks passed" : `⚠ Confidence ${signal.confidence.toFixed(1)}% (min 50%)`, color: validationPassed ? "border-alchmai-success text-alchmai-success bg-alchmai-success/10" : "border-alchmai-danger text-alchmai-danger bg-alchmai-danger/10" },
+                  ];
+                })().map((item, i, arr) => (
                   <div key={i} className="w-full">
                     <div className="flex items-center gap-3">
                       <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center text-xs font-bold flex-shrink-0 ${item.color}`}>

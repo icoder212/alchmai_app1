@@ -36,81 +36,91 @@ class FREDClient:
     
     def get_gdp_growth(self, start_date: Optional[datetime] = None) -> float:
         """
-        Get GDP growth rate
-        
-        Args:
-            start_date: Start date for data (default: 1 year ago)
-            
+        Get GDP YoY growth rate (%).
+
+        FRED "GDP" series returns nominal GDP in billions of dollars (e.g. 31490 = $31.49T).
+        We calculate the year-over-year percentage change using 4 quarters (1 year) of lag.
+        Fetches 2 years of data to guarantee at least 5 quarterly data points.
+
         Returns:
-            Latest GDP value
+            YoY GDP growth rate as a percentage (e.g. 2.5 = 2.5%)
         """
         cache_key = "fred:gdp"
-        
+
         def fetch_data():
             try:
                 if self.fred is None:
                     logger.warning("FRED client not available, returning neutral value")
-                    return 0.0
-                
-                if start_date is None:
-                    observation_start = datetime.now() - timedelta(days=365)
-                else:
-                    observation_start = start_date
-                
+                    return 2.5  # neutral / average US growth
+
+                # Fetch 2 years to guarantee ≥5 quarterly observations
+                obs_start = datetime.now() - timedelta(days=730)
                 gdp_series = self.fred.get_series(
                     self.SERIES_IDS["gdp"],
-                    observation_start=observation_start.strftime("%Y-%m-%d")
+                    observation_start=obs_start.strftime("%Y-%m-%d")
                 )
-                if gdp_series is not None and len(gdp_series) > 0:
-                    return float(gdp_series.iloc[-1])
-                return 0.0
+                gdp_series = gdp_series.dropna() if gdp_series is not None else None
+                if gdp_series is not None and len(gdp_series) >= 5:
+                    # GDP is quarterly — 4 periods back = 1 year ago
+                    current   = float(gdp_series.iloc[-1])
+                    year_ago  = float(gdp_series.iloc[-5])
+                    growth    = ((current - year_ago) / year_ago) * 100
+                    return round(growth, 2)
+                # Fallback: not enough data — return reasonable default
+                logger.warning("FRED GDP: insufficient quarterly data, using default 2.5%")
+                return 2.5
             except Exception as e:
                 logger.error(f"FRED GDP error: {e}")
-                return 0.0
-        
+                return 2.5
+
         # Cache for 1 day
         return cache_manager.get_or_set(cache_key, fetch_data, ttl=86400)
     
     def get_inflation_rate(self, start_date: Optional[datetime] = None) -> float:
         """
-        Get inflation rate (CPI)
-        
-        Args:
-            start_date: Start date for data (default: 1 year ago)
-            
+        Get YoY inflation rate (CPI % change).
+
+        FRED "CPIAUCSL" returns the raw CPI index level (e.g. 326 is the index, not 326%).
+        CPI data is published with a ~6-week lag so a 365-day window can return only 11
+        monthly observations, causing the old code to fall back to the raw index level.
+        We now fetch 15 months to always guarantee ≥13 monthly data points.
+
         Returns:
-            Latest CPI value or YoY inflation rate
+            YoY CPI inflation rate as a percentage (e.g. 2.8 = 2.8%)
         """
         cache_key = "fred:cpi"
-        
+
         def fetch_data():
             try:
                 if self.fred is None:
                     logger.warning("FRED client not available, returning neutral value")
-                    return 0.0
-                
-                if start_date is None:
-                    observation_start = datetime.now() - timedelta(days=365)
-                else:
-                    observation_start = start_date
-                
+                    return 2.5  # neutral / average US inflation
+
+                # Fetch 15 months to guarantee ≥13 monthly observations despite CPI lag
+                obs_start = datetime.now() - timedelta(days=456)
                 cpi_series = self.fred.get_series(
                     self.SERIES_IDS["cpi"],
-                    observation_start=observation_start.strftime("%Y-%m-%d")
+                    observation_start=obs_start.strftime("%Y-%m-%d")
                 )
-                if cpi_series is not None and len(cpi_series) > 0:
-                    # Calculate YoY inflation rate
-                    if len(cpi_series) >= 12:
-                        current = float(cpi_series.iloc[-1])
-                        year_ago = float(cpi_series.iloc[-12])
-                        inflation_rate = ((current - year_ago) / year_ago) * 100
-                        return inflation_rate
-                    return float(cpi_series.iloc[-1])
-                return 0.0
+                cpi_series = cpi_series.dropna() if cpi_series is not None else None
+                if cpi_series is not None and len(cpi_series) >= 13:
+                    current   = float(cpi_series.iloc[-1])
+                    year_ago  = float(cpi_series.iloc[-13])
+                    inflation_rate = ((current - year_ago) / year_ago) * 100
+                    return round(inflation_rate, 2)
+                elif cpi_series is not None and len(cpi_series) >= 2:
+                    # Fewer points than expected — calculate with what we have
+                    current  = float(cpi_series.iloc[-1])
+                    earliest = float(cpi_series.iloc[0])
+                    months   = max(1, len(cpi_series) - 1)
+                    annualised = ((current - earliest) / earliest) * (12 / months) * 100
+                    return round(annualised, 2)
+                logger.warning("FRED CPI: insufficient data, using default 2.5%")
+                return 2.5
             except Exception as e:
                 logger.error(f"FRED CPI error: {e}")
-                return 0.0
-        
+                return 2.5
+
         # Cache for 1 day
         return cache_manager.get_or_set(cache_key, fetch_data, ttl=86400)
     
